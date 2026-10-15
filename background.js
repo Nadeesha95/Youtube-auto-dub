@@ -1,63 +1,62 @@
 /**
  * YouTube Auto-Dub Background Service Worker (Manifest V3)
  */
+const DEFAULT_SETTINGS = {
+  targetLanguage: 'hi',
+  autoDubEnabled: true,
+  dubVolume: 1.0,
+  originalVolumeDuringDub: 0.15,
+  speechRate: 1.1,
+  maxSpeechRate: 1.6,
+  ttsEngine: 'auto',
+  simplifyLanguage: true,
+  subtitlesEnabled: true,
+  subtitleMode: 'bilingual',
+  autoEnableCaptions: true
+};
+
+const CACHE_LIMIT = 3000;
 const translationCache = new Map();
 
 chrome.runtime.onInstalled.addListener(() => {
+  // Merge so users upgrading from an older version get the new keys without losing their choices.
   chrome.storage.local.get(['ytdub_settings'], (result) => {
-    if (!result.ytdub_settings) {
-      chrome.storage.local.set({
-        ytdub_settings: {
-          targetLanguage: 'hi',
-          autoDetectCountry: true,
-          autoDubEnabled: true,
-          dubVolume: 1.0,
-          speechRate: 1.15,
-          simplifyLanguage: true,
-          subtitlesEnabled: true,
-          subtitleMode: 'bilingual',
-          noDelaySync: true
-        }
-      });
-    }
+    chrome.storage.local.set({
+      ytdub_settings: { ...DEFAULT_SETTINGS, ...(result.ytdub_settings || {}) }
+    });
   });
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'TRANSLATE_CAPTION') {
-    const { text, targetLang, simplify } = request;
-    const cacheKey = `${targetLang}:${simplify ? 'simp:' : ''}${text}`;
-
-    if (translationCache.has(cacheKey)) {
-      sendResponse({
-        translatedText: translationCache.get(cacheKey),
-        durationSec: Math.max(2, text.length / 14)
-      });
-      return true;
-    }
-
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
-
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        let translated = '';
-        if (data && data[0]) {
-          translated = data[0].map(item => item[0]).join('');
-        }
-        if (simplify && translated.length > 70) {
-          translated = translated.replace(/[,;]/g, ' -').trim();
-        }
-        translationCache.set(cacheKey, translated);
-        sendResponse({
-          translatedText: translated,
-          durationSec: Math.max(2, translated.length / 15)
-        });
-      })
-      .catch(err => {
-        sendResponse({ translatedText: text, durationSec: 3 });
-      });
-
-    return true;
+function cacheSet(key, value) {
+  if (translationCache.size >= CACHE_LIMIT) {
+    translationCache.delete(translationCache.keys().next().value);
   }
+  translationCache.set(key, value);
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action !== 'TRANSLATE') return false;
+
+  const { text, targetLang } = request;
+  const cacheKey = `${targetLang}:${text}`;
+  if (translationCache.has(cacheKey)) {
+    sendResponse(translationCache.get(cacheKey));
+    return false;
+  }
+
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
+  fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      const translatedText = (data && data[0] ? data[0].map(item => item[0]).join('') : '').trim();
+      const result = { translatedText, sourceLang: (data && data[2]) || '' };
+      if (translatedText) cacheSet(cacheKey, result);
+      sendResponse(result);
+    })
+    .catch(() => sendResponse(null)); // content script retries later
+
+  return true;
 });

@@ -704,32 +704,47 @@ const ALL_LANGUAGES = [
   }
 ];
 
-const elements = {
-  autoDubToggle: document.getElementById('auto-dub-toggle'),
-  langSelect: document.getElementById('lang-select'),
-  langSearch: document.getElementById('lang-search'),
-  autoCountryToggle: document.getElementById('auto-country-toggle'),
-  noDelayToggle: document.getElementById('nodelay-toggle'),
-  testBtn: document.getElementById('test-voice-btn')
-};
 
-let currentSettings = {
+const DEFAULT_SETTINGS = {
   targetLanguage: 'hi',
-  autoDetectCountry: true,
   autoDubEnabled: true,
   dubVolume: 1.0,
-  speechRate: 1.15,
+  originalVolumeDuringDub: 0.15,
+  speechRate: 1.1,
+  maxSpeechRate: 1.6,
+  ttsEngine: 'auto',
   simplifyLanguage: true,
-  noDelaySync: true
+  subtitlesEnabled: true,
+  subtitleMode: 'bilingual',
+  autoEnableCaptions: true
 };
+
+const $ = (id) => document.getElementById(id);
+const elements = {
+  autoDubToggle: $('auto-dub-toggle'),
+  langSelect: $('lang-select'),
+  langSearch: $('lang-search'),
+  dubVolume: $('dub-volume'),
+  originalVolume: $('original-volume'),
+  speechRate: $('speech-rate'),
+  maxRate: $('max-rate'),
+  simplifyToggle: $('simplify-toggle'),
+  subtitlesToggle: $('subtitles-toggle'),
+  subtitleMode: $('subtitle-mode'),
+  ttsEngine: $('tts-engine'),
+  testBtn: $('test-voice-btn'),
+  status: $('status-line')
+};
+
+let currentSettings = { ...DEFAULT_SETTINGS };
 
 function renderLanguageOptions(filter = '') {
   elements.langSelect.innerHTML = '';
   const search = filter.toLowerCase().trim();
 
-  const filtered = ALL_LANGUAGES.filter(l => 
-    l.name.toLowerCase().includes(search) || 
-    l.nativeName.toLowerCase().includes(search) || 
+  const filtered = ALL_LANGUAGES.filter(l =>
+    l.name.toLowerCase().includes(search) ||
+    l.nativeName.toLowerCase().includes(search) ||
     l.country.toLowerCase().includes(search) ||
     l.code.toLowerCase().includes(search)
   );
@@ -738,75 +753,90 @@ function renderLanguageOptions(filter = '') {
     const opt = document.createElement('option');
     opt.value = lang.code;
     opt.textContent = `${lang.name} (${lang.nativeName}) - ${lang.country}`;
-    if (lang.code === currentSettings.targetLanguage) {
-      opt.selected = true;
-    }
+    if (lang.code === currentSettings.targetLanguage) opt.selected = true;
     elements.langSelect.appendChild(opt);
   });
 }
 
-function loadSettings() {
-  if (chrome && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['ytdub_settings'], (result) => {
-      if (result && result.ytdub_settings) {
-        currentSettings = { ...currentSettings, ...result.ytdub_settings };
-      }
-      applySettingsToUI();
-    });
-  } else {
-    applySettingsToUI();
-  }
+function renderRangeLabels() {
+  $('dub-volume-value').textContent = `${Math.round(currentSettings.dubVolume * 100)}%`;
+  $('original-volume-value').textContent = currentSettings.originalVolumeDuringDub === 0
+    ? 'Muted'
+    : `${Math.round(currentSettings.originalVolumeDuringDub * 100)}%`;
+  $('speech-rate-value').textContent = `${Number(currentSettings.speechRate).toFixed(2)}×`;
+  $('max-rate-value').textContent = `${Number(currentSettings.maxSpeechRate).toFixed(1)}×`;
 }
 
 function applySettingsToUI() {
   elements.autoDubToggle.checked = currentSettings.autoDubEnabled;
-  elements.autoCountryToggle.checked = currentSettings.autoDetectCountry;
-  if (elements.noDelayToggle) {
-    elements.noDelayToggle.checked = currentSettings.noDelaySync;
-  }
-  renderLanguageOptions();
+  elements.dubVolume.value = Math.round(currentSettings.dubVolume * 100);
+  elements.originalVolume.value = Math.round(currentSettings.originalVolumeDuringDub * 100);
+  elements.speechRate.value = currentSettings.speechRate;
+  elements.maxRate.value = currentSettings.maxSpeechRate;
+  elements.simplifyToggle.checked = currentSettings.simplifyLanguage;
+  elements.subtitlesToggle.checked = currentSettings.subtitlesEnabled;
+  elements.subtitleMode.value = currentSettings.subtitleMode === 'bilingual' ? 'bilingual' : 'dubbed';
+  elements.ttsEngine.value = currentSettings.ttsEngine === 'local' ? 'local' : 'auto';
+  renderRangeLabels();
+  renderLanguageOptions(elements.langSearch.value);
 }
 
-function broadcastSettingsRealtime() {
-  if (chrome && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ ytdub_settings: currentSettings });
-  }
+// The content script listens to storage changes, so every write applies to the video immediately.
+let saveTimer = 0;
+function update(patch, { immediate = true } = {}) {
+  currentSettings = { ...currentSettings, ...patch };
+  renderRangeLabels();
+  clearTimeout(saveTimer);
+  const save = () => chrome.storage.local.set({ ytdub_settings: currentSettings });
+  if (immediate) save();
+  else saveTimer = setTimeout(save, 60); // throttle while a slider is being dragged
+}
 
-  if (chrome && chrome.tabs && chrome.tabs.query) {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: 'SETTINGS_CHANGED',
-          settings: currentSettings
-        });
+function bindToggle(el, key) {
+  el.addEventListener('change', () => update({ [key]: el.checked }));
+}
+
+function bindRange(el, key, toValue) {
+  el.addEventListener('input', () => update({ [key]: toValue(el.value) }, { immediate: false }));
+  el.addEventListener('change', () => update({ [key]: toValue(el.value) }));
+}
+
+elements.langSearch.addEventListener('input', (e) => renderLanguageOptions(e.target.value));
+elements.langSelect.addEventListener('change', (e) => update({ targetLanguage: e.target.value }));
+bindToggle(elements.autoDubToggle, 'autoDubEnabled');
+bindToggle(elements.simplifyToggle, 'simplifyLanguage');
+bindToggle(elements.subtitlesToggle, 'subtitlesEnabled');
+bindRange(elements.dubVolume, 'dubVolume', v => Number(v) / 100);
+bindRange(elements.originalVolume, 'originalVolumeDuringDub', v => Number(v) / 100);
+bindRange(elements.speechRate, 'speechRate', Number);
+bindRange(elements.maxRate, 'maxSpeechRate', Number);
+elements.subtitleMode.addEventListener('change', (e) => update({ subtitleMode: e.target.value }));
+elements.ttsEngine.addEventListener('change', (e) => update({ ttsEngine: e.target.value }));
+
+function setStatus(text, kind = '') {
+  elements.status.textContent = text;
+  elements.status.className = `status-line ${kind}`;
+}
+
+function refreshStatus() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs && tabs[0];
+    if (!tab || !/^https?:\/\/([^/]+\.)?youtube\.com\//.test(tab.url || '')) {
+      return setStatus('Open a YouTube video to start dubbing.');
+    }
+    chrome.tabs.sendMessage(tab.id, { action: 'GET_STATUS' }, (res) => {
+      if (chrome.runtime.lastError || !res) {
+        return setStatus('Reload this YouTube tab once to activate the extension.', 'warn');
       }
+      if (!res.hasVideo) return setStatus('Waiting for a video…');
+      if (res.mode === 'transcript') {
+        return setStatus(`Synced to the full transcript (${res.lines} lines). Voice is prepared ahead of time.`, 'ok');
+      }
+      if (res.mode === 'no-captions') {
+        return setStatus('This video has no captions, so it cannot be dubbed.', 'warn');
+      }
+      setStatus('Live mode: following on-screen captions (slight delay). Turn on CC if nothing is spoken.', 'warn');
     });
-  }
-}
-
-elements.langSearch.addEventListener('input', (e) => {
-  renderLanguageOptions(e.target.value);
-});
-
-elements.langSelect.addEventListener('change', (e) => {
-  currentSettings.targetLanguage = e.target.value;
-  broadcastSettingsRealtime();
-});
-
-elements.autoDubToggle.addEventListener('change', (e) => {
-  currentSettings.autoDubEnabled = e.target.checked;
-  broadcastSettingsRealtime();
-});
-
-elements.autoCountryToggle.addEventListener('change', (e) => {
-  currentSettings.autoDetectCountry = e.target.checked;
-  broadcastSettingsRealtime();
-});
-
-if (elements.noDelayToggle) {
-  elements.noDelayToggle.addEventListener('change', (e) => {
-    currentSettings.noDelaySync = e.target.checked;
-    broadcastSettingsRealtime();
   });
 }
 
@@ -816,15 +846,27 @@ elements.testBtn.addEventListener('click', () => {
     ta: 'வணக்கம்! இது யூடியூப் தமிழ் குரல் மாற்ற சோதனை.',
     hi: 'नमस्ते! यह यूट्यूब हिंदी डबिंग का लाइव टेस्ट है।'
   };
-  const text = samples[currentSettings.targetLanguage] || 'Hello! Testing live audio.';
-
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(currentSettings.targetLanguage)}&client=tw-ob&q=${encodeURIComponent(text)}`;
-  const audio = new Audio(url);
-  audio.play().catch(() => {
+  const lang = currentSettings.targetLanguage;
+  const text = samples[lang] || 'Hello! Testing live audio.';
+  const speakLocally = () => {
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = currentSettings.targetLanguage;
+    utter.lang = lang;
+    utter.rate = currentSettings.speechRate;
+    utter.volume = currentSettings.dubVolume;
     window.speechSynthesis.speak(utter);
-  });
+  };
+  if (currentSettings.ttsEngine === 'local') return speakLocally();
+
+  const tl = { zh: 'zh-CN', bho: 'hi', tl: 'fil' }[lang] || lang;
+  const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(tl)}&client=tw-ob&q=${encodeURIComponent(text)}`);
+  audio.volume = currentSettings.dubVolume;
+  audio.playbackRate = currentSettings.speechRate;
+  audio.play().catch(speakLocally);
 });
 
-loadSettings();
+chrome.storage.local.get(['ytdub_settings'], (result) => {
+  currentSettings = { ...DEFAULT_SETTINGS, ...((result && result.ytdub_settings) || {}) };
+  applySettingsToUI();
+});
+refreshStatus();
+setInterval(refreshStatus, 2000);

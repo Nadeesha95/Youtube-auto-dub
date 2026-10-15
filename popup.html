@@ -15,16 +15,18 @@
         <p class="subtitle">Sinhala, Tamil, Hindi & 100 Languages</p>
       </div>
     </div>
-    <div class="tier-pill" id="tier-badge">LIVE SYNC</div>
+    <div class="tier-pill">LIVE SYNC</div>
   </div>
 
   <div class="container">
+    <div class="status-line" id="status-line">Checking this tab…</div>
+
     <!-- Master Auto-Dub Switch -->
     <div class="card">
       <div class="switch-row">
         <div>
-          <label class="font-bold text-white">Voice Auto-Dubbing</label>
-          <p class="desc">Speaks in real time over video</p>
+          <label class="font-bold text-white" for="auto-dub-toggle">Voice Auto-Dubbing</label>
+          <p class="desc">Speaks the translation in sync with the video</p>
         </div>
         <label class="switch">
           <input type="checkbox" id="auto-dub-toggle" checked>
@@ -33,58 +35,89 @@
       </div>
     </div>
 
-    <!-- Original Sound Behavior Info -->
-    <div class="card" style="border-color: #0284c7;">
-      <div class="font-bold text-white flex items-center gap-1.5">
-        <span>🔇 Smart Two-Stage Audio Ducking</span>
-      </div>
-      <p class="desc" style="color: #cbd5e1; margin-top: 4px; line-height: 1.4;">
-        Original video sound reduces to <strong>5%</strong> when line starts, and is <strong>FULLY MUTED (0%)</strong> while dubbing speaks, restoring when silent.
-      </p>
-    </div>
-
-    <!-- Target Language (Realtime instant update) -->
+    <!-- Target Language -->
     <div class="card">
       <label class="field-label" for="lang-select">Target Dub Language</label>
       <div class="search-box">
         <input type="text" id="lang-search" placeholder="Search 100 languages (Hindi, Sinhala, Tamil)..." />
       </div>
-      <select id="lang-select" class="select-field">
-        <!-- Filled dynamically -->
-      </select>
-
-      <div class="checkbox-row" style="margin-top: 10px;">
-        <input type="checkbox" id="auto-country-toggle" checked>
-        <label for="auto-country-toggle" class="desc">Auto-detect country language</label>
-      </div>
+      <select id="lang-select" class="select-field"></select>
     </div>
 
-    <!-- Zero-Delay & Anti-Repetition -->
+    <!-- Audio -->
     <div class="card">
-      <div class="switch-row">
-        <div>
-          <label class="font-bold text-white">Anti-Repetition Guard</label>
-          <p class="desc">Prevents repeated captions or loop playback</p>
-        </div>
-        <span class="status-tag">ACTIVE</span>
+      <div class="range-row">
+        <label class="field-label" for="dub-volume">Dub voice volume</label>
+        <span class="range-value" id="dub-volume-value"></span>
       </div>
+      <input type="range" id="dub-volume" min="0" max="100" step="5">
+
+      <div class="range-row">
+        <label class="field-label" for="original-volume">Original audio while dubbing</label>
+        <span class="range-value" id="original-volume-value"></span>
+      </div>
+      <input type="range" id="original-volume" min="0" max="60" step="5">
+      <p class="desc">Fades smoothly and comes back between lines. Your YouTube volume slider is never changed.</p>
+    </div>
+
+    <!-- Speed / fast speech -->
+    <div class="card">
+      <div class="range-row">
+        <label class="field-label" for="speech-rate">Voice speed</label>
+        <span class="range-value" id="speech-rate-value"></span>
+      </div>
+      <input type="range" id="speech-rate" min="0.8" max="1.5" step="0.05">
+
+      <div class="range-row">
+        <label class="field-label" for="max-rate">Max catch-up speed</label>
+        <span class="range-value" id="max-rate-value"></span>
+      </div>
+      <input type="range" id="max-rate" min="1.2" max="2.0" step="0.1">
 
       <div class="switch-row" style="margin-top: 10px;">
         <div>
-          <label class="font-bold text-white">Zero-Delay Audio Sync</label>
-          <p class="desc">Pre-buffers audio and matches scene tempo</p>
+          <label class="font-bold text-white" for="simplify-toggle">Smart simplify for fast speech</label>
+          <p class="desc">Drops filler words, shortens lines too long for their gap, and skips lines when the dub falls behind</p>
         </div>
         <label class="switch">
-          <input type="checkbox" id="nodelay-toggle" checked>
+          <input type="checkbox" id="simplify-toggle" checked>
           <span class="slider"></span>
         </label>
       </div>
     </div>
 
-    <!-- Action Buttons -->
-    <button id="test-voice-btn" class="primary-btn">
-      🔊 Test Sinhala / Tamil / Hindi Voice
-    </button>
+    <!-- Subtitles & voice -->
+    <div class="card">
+      <div class="switch-row">
+        <div>
+          <label class="font-bold text-white" for="subtitles-toggle">Translated subtitles</label>
+          <p class="desc">Replaces YouTube's captions while synced</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="subtitles-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <label class="field-label" for="subtitle-mode">Subtitle style</label>
+          <select id="subtitle-mode" class="select-field">
+            <option value="bilingual">Bilingual</option>
+            <option value="dubbed">Translation only</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="tts-engine">Voice</label>
+          <select id="tts-engine" class="select-field">
+            <option value="auto">Google (natural)</option>
+            <option value="local">Browser voice</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button id="test-voice-btn" class="primary-btn">🔊 Test voice</button>
   </div>
 
   <script src="popup.js"></script>

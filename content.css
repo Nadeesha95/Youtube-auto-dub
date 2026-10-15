@@ -9,7 +9,22 @@
   width: 90%;
   max-width: 920px;
   text-align: center;
-  transition: all 0.2s ease;
+  transition: bottom 0.2s ease;
+}
+
+/* Lift subtitles above the control bar only while it is visible */
+.ytp-autohide #ytdub-overlay-container {
+  bottom: 24px;
+}
+
+/* Our overlay replaces YouTube's captions while the transcript is synced */
+.ytdub-hide-native .ytp-caption-window-container {
+  opacity: 0 !important;
+}
+
+.ytdub-subtitle-box[hidden],
+.ytdub-original-text[hidden] {
+  display: none !important;
 }
 
 .ytdub-subtitle-box {
@@ -21,7 +36,7 @@
   padding: 10px 18px;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
-  pointer-events: auto;
+  pointer-events: none;
   line-height: 1.45;
   user-select: none;
   font-family: system-ui, -apple-system, sans-serif;

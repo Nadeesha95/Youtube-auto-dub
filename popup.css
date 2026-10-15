@@ -191,3 +191,45 @@ input:checked + .slider:before {
   justify-content: center;
   gap: 8px;
 }
+
+.status-line {
+  font-size: 11px;
+  color: #cbd5e1;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-left: 3px solid #64748b;
+  border-radius: 6px;
+  padding: 7px 10px;
+  line-height: 1.4;
+}
+.status-line.ok { border-left-color: #34d399; }
+.status-line.warn { border-left-color: #fbbf24; }
+
+.range-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.range-row .field-label { margin-bottom: 2px; }
+.range-row + input[type="range"] { margin-bottom: 10px; }
+
+.range-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: #0284c7;
+  margin: 4px 0 0 0;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.two-col .select-field { padding: 6px 8px; font-size: 12px; }
