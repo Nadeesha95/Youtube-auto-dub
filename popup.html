@@ -77,13 +77,25 @@
       <div class="switch-row" style="margin-top: 10px;">
         <div>
           <label class="font-bold text-white" for="simplify-toggle">Smart simplify for fast speech</label>
-          <p class="desc">Drops filler words, shortens lines too long for their gap, and skips lines when the dub falls behind</p>
+          <p class="desc">When a translation is too long for its gap, the voice says a shorter, simpler version of the meaning. Subtitles keep the full text.</p>
         </div>
         <label class="switch">
           <input type="checkbox" id="simplify-toggle" checked>
           <span class="slider"></span>
         </label>
       </div>
+
+      <div class="switch-row" style="margin-top: 10px;">
+        <div>
+          <label class="font-bold text-white" for="ai-toggle">Use on-device AI to simplify</label>
+          <p class="desc" id="ai-status">Checking…</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="ai-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <button id="ai-download-btn" class="secondary-btn" hidden>Download AI model (one-time)</button>
     </div>
 
     <!-- Subtitles & voice -->

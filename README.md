@@ -6,11 +6,17 @@
    ahead and pre-buffers the voice for the next lines. Each line is spoken at the moment it is said
    in the video — no waiting for captions to appear on screen, no repeated lines.
    Captions are switched on automatically if needed (YouTube's captions are hidden behind ours).
-2. **Fast speech handling** ("Smart simplify"):
-   - The voice speeds up to fit each line's time slot (up to "Max catch-up speed").
-   - Filler words (um, you know, basically, मतलब, यानी, है ना …) are removed before translating.
-   - Lines still too long lose minor middle clauses; the first and last clause (subject and verb) are kept.
-   - If the dub still falls behind, stale lines are skipped so the voice follows what is being said now.
+2. **Fast speech / long languages** ("Smart simplify"): some languages (e.g. Sinhala) take much
+   longer to say than the original. For every upcoming line the extension compares the translation's
+   spoken length (learned from the real voice) with the time available, and if it will not fit:
+   - The sentence is rewritten in fewer, simpler words **in English** to a word budget, and that
+     shorter meaning is translated and spoken. Subtitles still show the full translation.
+   - Rewriting uses **Chrome's on-device AI (Gemini Nano)** when the computer supports it (free,
+     private; download it once from the popup), otherwise built-in rules
+     ("I'm going to" → "I will", "in order to" → "to", drops filler, asides and "which…" clauses,
+     always keeping the main clause).
+   - The voice also speeds up to fit (up to "Max catch-up speed"), and if the dub still falls
+     behind, stale lines are skipped so the voice follows what is being said now.
 3. **Smooth audio ducking**: the original audio fades to the level you choose while the dub speaks and
    stays down between back-to-back lines (no pumping). It is done through Web Audio, so YouTube's own
    volume slider is never changed.

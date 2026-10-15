@@ -24,7 +24,8 @@
     maxSpeechRate: 1.6,
     speechPitch: 1.0,
     ttsEngine: 'auto',          // 'auto' = Google voice (pre-buffered) with browser-voice fallback, 'local' = browser voices
-    simplifyLanguage: true,     // strip fillers and condense lines that cannot fit their time slot
+    simplifyLanguage: true,     // shorten lines that cannot fit their time slot
+    aiSimplify: true,           // use Chrome's on-device AI for shortening when available
     subtitlesEnabled: true,
     subtitleMode: 'bilingual',
     autoEnableCaptions: true,
@@ -34,6 +35,7 @@
   const TRANSLATE_AHEAD_SEC = 60;
   const PREFETCH_AHEAD = 3;           // upcoming lines whose voice audio is pre-buffered
   const MAX_INFLIGHT = 3;
+  const MAX_SHORTEN_INFLIGHT = 2;
   const DUCK_HOLD_MS = 700;           // keep the original ducked between consecutive lines (no volume pumping)
   const LIVE_FLUSH_PAUSE_MS = 700;
   const LIVE_MAX_WORDS = 14;
@@ -55,6 +57,7 @@
   let transcriptSig = '';
   let epoch = 0;                      // bumped whenever translations must be discarded
   let inflight = 0;
+  let shortenInflight = 0;
 
   let ccAutoTried = false;
   let weEnabledCC = false;
@@ -142,7 +145,7 @@
         chrome.runtime.sendMessage({ action: 'TRANSLATE', text, targetLang: targetLang() }, res => {
           if (chrome.runtime.lastError || !res || !res.translatedText) return resolve(null);
           const src = (res.sourceLang || '').split('-')[0];
-          resolve({ text: res.translatedText, same: !!src && src === targetLang().split('-')[0] });
+          resolve({ text: res.translatedText, sourceLang: res.sourceLang || '', same: !!src && src === targetLang().split('-')[0] });
         });
       } catch (e) {
         resolve(null);
@@ -163,8 +166,55 @@
       inflight--;
       if (!res) { c.tr = undefined; c.fails = (c.fails || 0) + 1; return; }
       c.tr = res.text;
+      c.srcLang = res.sourceLang;
       c.same = res.same;
     });
+  }
+
+  // How much a line must shrink to be spoken in slotSec at max speed (1 = it already fits).
+  function shrinkRatio(text, slotSec) {
+    const r = (slotSec * settings.maxSpeechRate * cpsFor(targetLang())) / text.length;
+    return r >= 1 ? 1 : Math.max(0.35, Math.floor(r * 0.95 * 20) / 20);
+  }
+
+  // Asks for the line's meaning in fewer words (rewritten in English, then translated).
+  function requestShorten(text, sourceLang, ratio, useAI) {
+    return new Promise(resolve => {
+      try {
+        chrome.runtime.sendMessage({ action: 'SHORTEN', text, sourceLang, targetLang: targetLang(), ratio, useAI }, res => {
+          resolve(chrome.runtime.lastError || !res ? null : res.translatedText || null);
+        });
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  // Lines too long for their slot get a simplified spoken version (c.say); subtitles keep c.tr.
+  // Re-evaluated every tick because the voice's real speaking speed is learned as clips load.
+  function maybeShorten(c, slot) {
+    if (c.shortening || shortenInflight >= MAX_SHORTEN_INFLIGHT) return;
+    const ratio = shrinkRatio(c.tr, slot);
+    if (ratio >= 1) return;
+    if (c.sayRatio !== undefined && c.sayRatio - ratio < 0.1) return;
+    c.shortening = true;
+    shortenInflight++;
+    const myEpoch = epoch;
+    requestShorten(c.text, c.srcLang, ratio, settings.aiSimplify).then(say => {
+      if (myEpoch !== epoch) return;
+      shortenInflight--;
+      c.shortening = false;
+      c.sayRatio = ratio;
+      if (say && say.length < (c.say || c.tr).length) {
+        c.say = say;
+        c.recondensed = false;
+        disposeClip(c);
+      }
+    });
+  }
+
+  function needsShortening(c, slot) {
+    return c.shortening || (c.sayRatio === undefined && shrinkRatio(c.tr, slot) < 1);
   }
 
   // ---------------------------------------------------------------- voices / clips
@@ -605,6 +655,7 @@
     cues.forEach(disposeClip);
     epoch++;
     inflight = 0;
+    shortenInflight = 0;
     cues = newCues;
     transcriptVideoId = vid || currentVideoId;
     resetLive();
@@ -614,10 +665,14 @@
   function resetTranslations() {
     epoch++;
     inflight = 0;
+    shortenInflight = 0;
     dub.stop();
     cues.forEach(c => {
       disposeClip(c);
       c.tr = undefined;
+      c.say = undefined;
+      c.sayRatio = undefined;
+      c.shortening = false;
       c.same = false;
       c.fails = 0;
       c.recondensed = false;
@@ -642,7 +697,7 @@
   function prepareClip(c) {
     const lang = targetLang();
     const slot = (c.slotEnd - c.start) / (video.playbackRate || 1);
-    const text = fitText(c.tr, slot);
+    const text = fitText(c.say || c.tr, slot);
     const clip = createClip(text, lang);
     c.clip = clip;
     // Once the real audio length is known, condense further if it cannot fit even at max speed.
@@ -664,7 +719,7 @@
     const remaining = Math.max(0.8, (c.slotEnd - t) / vRate);
     let clip = c.clip;
     c.clip = null;
-    if (!clip) clip = createClip(fitText(c.tr, remaining), targetLang());
+    if (!clip) clip = createClip(fitText(c.say || c.tr, remaining), targetLang());
     const dur = clip.duration || clip.text.length / cpsFor(targetLang());
     let rate = settings.speechRate;
     if (dur / rate > remaining) rate = Math.min(settings.maxSpeechRate, dur / remaining);
@@ -687,9 +742,14 @@
       const c = cues[i];
       if (c.start > t + TRANSLATE_AHEAD_SEC * vRate) break;
       if (c.tr === undefined) requestTranslation(c);
-      if (settings.autoDubEnabled && c.state === 'pending' && ahead < PREFETCH_AHEAD) {
+      if (!settings.autoDubEnabled || c.state !== 'pending' || !c.tr || c.same) continue;
+      const slot = (c.slotEnd - c.start) / vRate;
+      if (settings.simplifyLanguage) maybeShorten(c, slot);
+      if (ahead < PREFETCH_AHEAD) {
         ahead++;
-        if (c.tr && !c.same && !c.clip) prepareClip(c);
+        // Wait for the simplified version unless the line is about to start.
+        const waitForShort = settings.simplifyLanguage && needsShortening(c, slot) && c.start - t > 1.5 * vRate;
+        if (!c.clip && !waitForShort) prepareClip(c);
       }
     }
 
@@ -803,9 +863,16 @@
       if (!res || myEpoch !== epoch || transcriptActive()) return;
       showLiveSubtitle(res.same ? null : res.text, text);
       if (res.same || !settings.autoDubEnabled || !video || video.paused) return;
-      live.queue.push({ tr: res.text, span, at: performance.now() });
-      while (live.queue.length > 2) live.queue.shift(); // fell behind: drop the oldest phrases
-      pumpLive();
+      const enqueue = (say) => {
+        if (myEpoch !== epoch || transcriptActive()) return;
+        live.queue.push({ tr: say || res.text, span, at: performance.now() });
+        while (live.queue.length > 2) live.queue.shift(); // fell behind: drop the oldest phrases
+        pumpLive();
+      };
+      const ratio = settings.simplifyLanguage ? shrinkRatio(res.text, span) : 1;
+      // Live captions are already late, so only the instant rule-based shortener is used here.
+      if (ratio < 1) requestShorten(text, res.sourceLang, ratio, false).then(enqueue);
+      else enqueue(null);
     });
   }
 
@@ -938,8 +1005,20 @@
 
     if (prev.targetLanguage !== settings.targetLanguage || prev.simplifyLanguage !== settings.simplifyLanguage) {
       resetTranslations();
-    } else if (prev.maxSpeechRate !== settings.maxSpeechRate || prev.ttsEngine !== settings.ttsEngine) {
-      cues.forEach(c => { if (c.state === 'pending') { disposeClip(c); c.recondensed = false; } });
+    } else if (prev.maxSpeechRate !== settings.maxSpeechRate || prev.ttsEngine !== settings.ttsEngine
+        || prev.aiSimplify !== settings.aiSimplify) {
+      epoch++;
+      shortenInflight = 0;
+      cues.forEach(c => {
+        if (c.state !== 'pending') return;
+        disposeClip(c);
+        c.recondensed = false;
+        c.say = undefined;
+        c.sayRatio = undefined;
+        c.shortening = false;
+        if (c.tr === null) c.tr = undefined; // translation dropped by the epoch change
+      });
+      inflight = 0;
     }
     if (!settings.autoDubEnabled) {
       dub.stop();
@@ -1007,6 +1086,7 @@
     noCaptions = false;
     epoch++;
     inflight = 0;
+    shortenInflight = 0;
     ccAutoTried = false;
     weEnabledCC = false;
     resetLive();

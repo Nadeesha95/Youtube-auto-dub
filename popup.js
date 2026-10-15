@@ -716,7 +716,8 @@ const DEFAULT_SETTINGS = {
   simplifyLanguage: true,
   subtitlesEnabled: true,
   subtitleMode: 'bilingual',
-  autoEnableCaptions: true
+  autoEnableCaptions: true,
+  aiSimplify: true
 };
 
 const $ = (id) => document.getElementById(id);
@@ -729,6 +730,9 @@ const elements = {
   speechRate: $('speech-rate'),
   maxRate: $('max-rate'),
   simplifyToggle: $('simplify-toggle'),
+  aiToggle: $('ai-toggle'),
+  aiStatus: $('ai-status'),
+  aiDownloadBtn: $('ai-download-btn'),
   subtitlesToggle: $('subtitles-toggle'),
   subtitleMode: $('subtitle-mode'),
   ttsEngine: $('tts-engine'),
@@ -774,6 +778,7 @@ function applySettingsToUI() {
   elements.speechRate.value = currentSettings.speechRate;
   elements.maxRate.value = currentSettings.maxSpeechRate;
   elements.simplifyToggle.checked = currentSettings.simplifyLanguage;
+  elements.aiToggle.checked = currentSettings.aiSimplify;
   elements.subtitlesToggle.checked = currentSettings.subtitlesEnabled;
   elements.subtitleMode.value = currentSettings.subtitleMode === 'bilingual' ? 'bilingual' : 'dubbed';
   elements.ttsEngine.value = currentSettings.ttsEngine === 'local' ? 'local' : 'auto';
@@ -805,6 +810,7 @@ elements.langSearch.addEventListener('input', (e) => renderLanguageOptions(e.tar
 elements.langSelect.addEventListener('change', (e) => update({ targetLanguage: e.target.value }));
 bindToggle(elements.autoDubToggle, 'autoDubEnabled');
 bindToggle(elements.simplifyToggle, 'simplifyLanguage');
+bindToggle(elements.aiToggle, 'aiSimplify');
 bindToggle(elements.subtitlesToggle, 'subtitlesEnabled');
 bindRange(elements.dubVolume, 'dubVolume', v => Number(v) / 100);
 bindRange(elements.originalVolume, 'originalVolumeDuringDub', v => Number(v) / 100);
@@ -869,4 +875,52 @@ chrome.storage.local.get(['ytdub_settings'], (result) => {
   applySettingsToUI();
 });
 refreshStatus();
+
+// ---- Chrome built-in AI (Gemini Nano) used to rewrite long lines in simpler words
+const AI_OPTIONS = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }]
+};
+const RULES_NOTE = 'Built-in rewrite rules are used instead.';
+
+async function refreshAiStatus() {
+  elements.aiDownloadBtn.hidden = true;
+  if (typeof LanguageModel === 'undefined') {
+    elements.aiStatus.textContent = `Needs Chrome 138 or newer. ${RULES_NOTE}`;
+    return;
+  }
+  let availability = 'unavailable';
+  try { availability = await LanguageModel.availability(AI_OPTIONS); } catch (e) { /* treat as unavailable */ }
+  if (availability === 'available') {
+    elements.aiStatus.textContent = 'Ready. Long lines are rewritten in simpler words, privately on this computer.';
+  } else if (availability === 'downloadable') {
+    elements.aiStatus.textContent = `The AI model is not downloaded yet. ${RULES_NOTE}`;
+    elements.aiDownloadBtn.hidden = false;
+  } else if (availability === 'downloading') {
+    elements.aiStatus.textContent = 'Downloading the AI model in the background…';
+  } else {
+    elements.aiStatus.textContent = `This computer can't run Chrome's on-device AI. ${RULES_NOTE}`;
+  }
+}
+
+elements.aiDownloadBtn.addEventListener('click', async () => {
+  elements.aiDownloadBtn.disabled = true;
+  try {
+    const session = await LanguageModel.create({
+      ...AI_OPTIONS,
+      monitor(m) {
+        m.addEventListener('downloadprogress', (e) => {
+          elements.aiStatus.textContent = `Downloading the AI model… ${Math.round(e.loaded * 100)}% (keeps going if you close this popup)`;
+        });
+      }
+    });
+    session.destroy();
+  } catch (e) {
+    elements.aiStatus.textContent = `Download failed. ${RULES_NOTE}`;
+  }
+  elements.aiDownloadBtn.disabled = false;
+  refreshAiStatus();
+});
+
+refreshAiStatus();
 setInterval(refreshStatus, 2000);

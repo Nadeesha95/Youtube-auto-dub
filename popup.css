@@ -233,3 +233,17 @@ input[type="range"] {
   margin-top: 10px;
 }
 .two-col .select-field { padding: 6px 8px; font-size: 12px; }
+
+.secondary-btn {
+  width: 100%;
+  margin-top: 8px;
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.secondary-btn:disabled { opacity: 0.6; cursor: default; }
