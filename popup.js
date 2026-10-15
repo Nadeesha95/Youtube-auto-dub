@@ -1,0 +1,830 @@
+/**
+ * YouTube Auto-Dub Popup Script
+ */
+const ALL_LANGUAGES = [
+  {
+    "code": "hi",
+    "name": "Hindi",
+    "nativeName": "हिन्दी",
+    "country": "India",
+    "ttsPrefix": "hi-IN"
+  },
+  {
+    "code": "si",
+    "name": "Sinhala",
+    "nativeName": "සිංහල",
+    "country": "Sri Lanka",
+    "ttsPrefix": "si-LK"
+  },
+  {
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "country": "United States",
+    "ttsPrefix": "en-US"
+  },
+  {
+    "code": "es",
+    "name": "Spanish",
+    "nativeName": "Español",
+    "country": "Spain",
+    "ttsPrefix": "es-ES"
+  },
+  {
+    "code": "zh",
+    "name": "Chinese (Simplified)",
+    "nativeName": "简体中文",
+    "country": "China",
+    "ttsPrefix": "zh-CN"
+  },
+  {
+    "code": "ar",
+    "name": "Arabic",
+    "nativeName": "العربية",
+    "country": "Saudi Arabia",
+    "ttsPrefix": "ar-SA"
+  },
+  {
+    "code": "bn",
+    "name": "Bengali",
+    "nativeName": "বাংলা",
+    "country": "Bangladesh",
+    "ttsPrefix": "bn-BD"
+  },
+  {
+    "code": "pt",
+    "name": "Portuguese",
+    "nativeName": "Português",
+    "country": "Brazil",
+    "ttsPrefix": "pt-BR"
+  },
+  {
+    "code": "ru",
+    "name": "Russian",
+    "nativeName": "Русский",
+    "country": "Russia",
+    "ttsPrefix": "ru-RU"
+  },
+  {
+    "code": "ja",
+    "name": "Japanese",
+    "nativeName": "日本語",
+    "country": "Japan",
+    "ttsPrefix": "ja-JP"
+  },
+  {
+    "code": "pa",
+    "name": "Punjabi",
+    "nativeName": "ਪੰਜਾਬੀ",
+    "country": "India",
+    "ttsPrefix": "pa-IN"
+  },
+  {
+    "code": "de",
+    "name": "German",
+    "nativeName": "Deutsch",
+    "country": "Germany",
+    "ttsPrefix": "de-DE"
+  },
+  {
+    "code": "jv",
+    "name": "Javanese",
+    "nativeName": "Basa Jawa",
+    "country": "Indonesia",
+    "ttsPrefix": "jv-ID"
+  },
+  {
+    "code": "ko",
+    "name": "Korean",
+    "nativeName": "한국어",
+    "country": "South Korea",
+    "ttsPrefix": "ko-KR"
+  },
+  {
+    "code": "fr",
+    "name": "French",
+    "nativeName": "Français",
+    "country": "France",
+    "ttsPrefix": "fr-FR"
+  },
+  {
+    "code": "te",
+    "name": "Telugu",
+    "nativeName": "తెలుగు",
+    "country": "India",
+    "ttsPrefix": "te-IN"
+  },
+  {
+    "code": "mr",
+    "name": "Marathi",
+    "nativeName": "मराठी",
+    "country": "India",
+    "ttsPrefix": "mr-IN"
+  },
+  {
+    "code": "tr",
+    "name": "Turkish",
+    "nativeName": "Türkçe",
+    "country": "Turkey",
+    "ttsPrefix": "tr-TR"
+  },
+  {
+    "code": "ta",
+    "name": "Tamil",
+    "nativeName": "தமிழ்",
+    "country": "India / Sri Lanka",
+    "ttsPrefix": "ta-IN"
+  },
+  {
+    "code": "vi",
+    "name": "Vietnamese",
+    "nativeName": "Tiếng Việt",
+    "country": "Vietnam",
+    "ttsPrefix": "vi-VN"
+  },
+  {
+    "code": "ur",
+    "name": "Urdu",
+    "nativeName": "اردو",
+    "country": "Pakistan",
+    "ttsPrefix": "ur-PK"
+  },
+  {
+    "code": "it",
+    "name": "Italian",
+    "nativeName": "Italiano",
+    "country": "Italy",
+    "ttsPrefix": "it-IT"
+  },
+  {
+    "code": "gu",
+    "name": "Gujarati",
+    "nativeName": "ગુજરાતી",
+    "country": "India",
+    "ttsPrefix": "gu-IN"
+  },
+  {
+    "code": "fa",
+    "name": "Persian (Farsi)",
+    "nativeName": "فارسی",
+    "country": "Iran",
+    "ttsPrefix": "fa-IR"
+  },
+  {
+    "code": "bho",
+    "name": "Bhojpuri",
+    "nativeName": "भोजपुरी",
+    "country": "India",
+    "ttsPrefix": "hi-IN"
+  },
+  {
+    "code": "pl",
+    "name": "Polish",
+    "nativeName": "Polski",
+    "country": "Poland",
+    "ttsPrefix": "pl-PL"
+  },
+  {
+    "code": "uk",
+    "name": "Ukrainian",
+    "nativeName": "Українська",
+    "country": "Ukraine",
+    "ttsPrefix": "uk-UA"
+  },
+  {
+    "code": "ml",
+    "name": "Malayalam",
+    "nativeName": "മലയാളം",
+    "country": "India",
+    "ttsPrefix": "ml-IN"
+  },
+  {
+    "code": "kn",
+    "name": "Kannada",
+    "nativeName": "ಕನ್ನಡ",
+    "country": "India",
+    "ttsPrefix": "kn-IN"
+  },
+  {
+    "code": "or",
+    "name": "Odia",
+    "nativeName": "ଓଡ଼ିଆ",
+    "country": "India",
+    "ttsPrefix": "or-IN"
+  },
+  {
+    "code": "my",
+    "name": "Burmese",
+    "nativeName": "မြန်မာစာ",
+    "country": "Myanmar",
+    "ttsPrefix": "my-MM"
+  },
+  {
+    "code": "th",
+    "name": "Thai",
+    "nativeName": "ไทย",
+    "country": "Thailand",
+    "ttsPrefix": "th-TH"
+  },
+  {
+    "code": "ha",
+    "name": "Hausa",
+    "nativeName": "Harshen Hausa",
+    "country": "Nigeria",
+    "ttsPrefix": "ha-NG"
+  },
+  {
+    "code": "id",
+    "name": "Indonesian",
+    "nativeName": "Bahasa Indonesia",
+    "country": "Indonesia",
+    "ttsPrefix": "id-ID"
+  },
+  {
+    "code": "yo",
+    "name": "Yoruba",
+    "nativeName": "Èdè Yorùbá",
+    "country": "Nigeria",
+    "ttsPrefix": "yo-NG"
+  },
+  {
+    "code": "sw",
+    "name": "Swahili",
+    "nativeName": "Kiswahili",
+    "country": "Kenya / Tanzania",
+    "ttsPrefix": "sw-KE"
+  },
+  {
+    "code": "nl",
+    "name": "Dutch",
+    "nativeName": "Nederlands",
+    "country": "Netherlands",
+    "ttsPrefix": "nl-NL"
+  },
+  {
+    "code": "ro",
+    "name": "Romanian",
+    "nativeName": "Română",
+    "country": "Romania",
+    "ttsPrefix": "ro-RO"
+  },
+  {
+    "code": "am",
+    "name": "Amharic",
+    "nativeName": "አማርኛ",
+    "country": "Ethiopia",
+    "ttsPrefix": "am-ET"
+  },
+  {
+    "code": "az",
+    "name": "Azerbaijani",
+    "nativeName": "Azərbaycan",
+    "country": "Azerbaijan",
+    "ttsPrefix": "az-AZ"
+  },
+  {
+    "code": "ku",
+    "name": "Kurdish",
+    "nativeName": "Kurdî",
+    "country": "Iraq",
+    "ttsPrefix": "ku-TR"
+  },
+  {
+    "code": "ps",
+    "name": "Pashto",
+    "nativeName": "پښتو",
+    "country": "Afghanistan",
+    "ttsPrefix": "ps-AF"
+  },
+  {
+    "code": "uz",
+    "name": "Uzbek",
+    "nativeName": "Oʻzbekcha",
+    "country": "Uzbekistan",
+    "ttsPrefix": "uz-UZ"
+  },
+  {
+    "code": "sd",
+    "name": "Sindhi",
+    "nativeName": "سنڌي",
+    "country": "Pakistan",
+    "ttsPrefix": "sd-PK"
+  },
+  {
+    "code": "ne",
+    "name": "Nepali",
+    "nativeName": "नेपाली",
+    "country": "Nepal",
+    "ttsPrefix": "ne-NP"
+  },
+  {
+    "code": "as",
+    "name": "Assamese",
+    "nativeName": "অসমীয়া",
+    "country": "India",
+    "ttsPrefix": "as-IN"
+  },
+  {
+    "code": "el",
+    "name": "Greek",
+    "nativeName": "Ελληνικά",
+    "country": "Greece",
+    "ttsPrefix": "el-GR"
+  },
+  {
+    "code": "cs",
+    "name": "Czech",
+    "nativeName": "Čeština",
+    "country": "Czech Republic",
+    "ttsPrefix": "cs-CZ"
+  },
+  {
+    "code": "sv",
+    "name": "Swedish",
+    "nativeName": "Svenska",
+    "country": "Sweden",
+    "ttsPrefix": "sv-SE"
+  },
+  {
+    "code": "hu",
+    "name": "Hungarian",
+    "nativeName": "Magyar",
+    "country": "Hungary",
+    "ttsPrefix": "hu-HU"
+  },
+  {
+    "code": "be",
+    "name": "Belarusian",
+    "nativeName": "Беларуская",
+    "country": "Belarus",
+    "ttsPrefix": "be-BY"
+  },
+  {
+    "code": "bg",
+    "name": "Bulgarian",
+    "nativeName": "Български",
+    "country": "Bulgaria",
+    "ttsPrefix": "bg-BG"
+  },
+  {
+    "code": "da",
+    "name": "Danish",
+    "nativeName": "Dansk",
+    "country": "Denmark",
+    "ttsPrefix": "da-DK"
+  },
+  {
+    "code": "fi",
+    "name": "Finnish",
+    "nativeName": "Suomi",
+    "country": "Finland",
+    "ttsPrefix": "fi-FI"
+  },
+  {
+    "code": "he",
+    "name": "Hebrew",
+    "nativeName": "עברית",
+    "country": "Israel",
+    "ttsPrefix": "he-IL"
+  },
+  {
+    "code": "no",
+    "name": "Norwegian",
+    "nativeName": "Norsk",
+    "country": "Norway",
+    "ttsPrefix": "no-NO"
+  },
+  {
+    "code": "sk",
+    "name": "Slovak",
+    "nativeName": "Slovenčina",
+    "country": "Slovakia",
+    "ttsPrefix": "sk-SK"
+  },
+  {
+    "code": "sr",
+    "name": "Serbian",
+    "nativeName": "Српски",
+    "country": "Serbia",
+    "ttsPrefix": "sr-RS"
+  },
+  {
+    "code": "hr",
+    "name": "Croatian",
+    "nativeName": "Hrvatski",
+    "country": "Croatia",
+    "ttsPrefix": "hr-HR"
+  },
+  {
+    "code": "lt",
+    "name": "Lithuanian",
+    "nativeName": "Lietuvių",
+    "country": "Lithuania",
+    "ttsPrefix": "lt-LT"
+  },
+  {
+    "code": "sl",
+    "name": "Slovenian",
+    "nativeName": "Slovenščina",
+    "country": "Slovenia",
+    "ttsPrefix": "sl-SI"
+  },
+  {
+    "code": "lv",
+    "name": "Latvian",
+    "nativeName": "Latviešu",
+    "country": "Latvia",
+    "ttsPrefix": "lv-LV"
+  },
+  {
+    "code": "et",
+    "name": "Estonian",
+    "nativeName": "Eesti",
+    "country": "Estonia",
+    "ttsPrefix": "et-EE"
+  },
+  {
+    "code": "km",
+    "name": "Khmer",
+    "nativeName": "ខ្មែរ",
+    "country": "Cambodia",
+    "ttsPrefix": "km-KH"
+  },
+  {
+    "code": "lo",
+    "name": "Lao",
+    "nativeName": "ລາວ",
+    "country": "Laos",
+    "ttsPrefix": "lo-LA"
+  },
+  {
+    "code": "ka",
+    "name": "Georgian",
+    "nativeName": "ქართული",
+    "country": "Georgia",
+    "ttsPrefix": "ka-GE"
+  },
+  {
+    "code": "hy",
+    "name": "Armenian",
+    "nativeName": "Հայերեն",
+    "country": "Armenia",
+    "ttsPrefix": "hy-AM"
+  },
+  {
+    "code": "sq",
+    "name": "Albanian",
+    "nativeName": "Shqip",
+    "country": "Albania",
+    "ttsPrefix": "sq-AL"
+  },
+  {
+    "code": "mk",
+    "name": "Macedonian",
+    "nativeName": "Македонски",
+    "country": "North Macedonia",
+    "ttsPrefix": "mk-MK"
+  },
+  {
+    "code": "bs",
+    "name": "Bosnian",
+    "nativeName": "Bosanski",
+    "country": "Bosnia",
+    "ttsPrefix": "bs-BA"
+  },
+  {
+    "code": "ms",
+    "name": "Malay",
+    "nativeName": "Bahasa Melayu",
+    "country": "Malaysia",
+    "ttsPrefix": "ms-MY"
+  },
+  {
+    "code": "tl",
+    "name": "Tagalog (Filipino)",
+    "nativeName": "Tagalog",
+    "country": "Philippines",
+    "ttsPrefix": "fil-PH"
+  },
+  {
+    "code": "af",
+    "name": "Afrikaans",
+    "nativeName": "Afrikaans",
+    "country": "South Africa",
+    "ttsPrefix": "af-ZA"
+  },
+  {
+    "code": "is",
+    "name": "Icelandic",
+    "nativeName": "Íslenska",
+    "country": "Iceland",
+    "ttsPrefix": "is-IS"
+  },
+  {
+    "code": "ga",
+    "name": "Irish",
+    "nativeName": "Gaeilge",
+    "country": "Ireland",
+    "ttsPrefix": "ga-IE"
+  },
+  {
+    "code": "cy",
+    "name": "Welsh",
+    "nativeName": "Cymraeg",
+    "country": "United Kingdom",
+    "ttsPrefix": "cy-GB"
+  },
+  {
+    "code": "mt",
+    "name": "Maltese",
+    "nativeName": "Malti",
+    "country": "Malta",
+    "ttsPrefix": "mt-MT"
+  },
+  {
+    "code": "mn",
+    "name": "Mongolian",
+    "nativeName": "Монгол хэл",
+    "country": "Mongolia",
+    "ttsPrefix": "mn-MN"
+  },
+  {
+    "code": "kk",
+    "name": "Kazakh",
+    "nativeName": "Қазақша",
+    "country": "Kazakhstan",
+    "ttsPrefix": "kk-KZ"
+  },
+  {
+    "code": "ky",
+    "name": "Kyrgyz",
+    "nativeName": "Кыргызча",
+    "country": "Kyrgyzstan",
+    "ttsPrefix": "ky-KG"
+  },
+  {
+    "code": "tg",
+    "name": "Tajik",
+    "nativeName": "Тоҷикӣ",
+    "country": "Tajikistan",
+    "ttsPrefix": "tg-TJ"
+  },
+  {
+    "code": "tk",
+    "name": "Turkmen",
+    "nativeName": "Türkmençe",
+    "country": "Turkmenistan",
+    "ttsPrefix": "tk-TM"
+  },
+  {
+    "code": "so",
+    "name": "Somali",
+    "nativeName": "Soomaaliga",
+    "country": "Somalia",
+    "ttsPrefix": "so-SO"
+  },
+  {
+    "code": "mg",
+    "name": "Malagasy",
+    "nativeName": "Malagasy",
+    "country": "Madagascar",
+    "ttsPrefix": "mg-MG"
+  },
+  {
+    "code": "sn",
+    "name": "Shona",
+    "nativeName": "chiShona",
+    "country": "Zimbabwe",
+    "ttsPrefix": "sn-ZW"
+  },
+  {
+    "code": "zu",
+    "name": "Zulu",
+    "nativeName": "isiZulu",
+    "country": "South Africa",
+    "ttsPrefix": "zu-ZA"
+  },
+  {
+    "code": "xh",
+    "name": "Xhosa",
+    "nativeName": "isiXhosa",
+    "country": "South Africa",
+    "ttsPrefix": "xh-ZA"
+  },
+  {
+    "code": "st",
+    "name": "Sesotho",
+    "nativeName": "Sesotho",
+    "country": "Lesotho",
+    "ttsPrefix": "st-LS"
+  },
+  {
+    "code": "ig",
+    "name": "Igbo",
+    "nativeName": "Asụsụ Igbo",
+    "country": "Nigeria",
+    "ttsPrefix": "ig-NG"
+  },
+  {
+    "code": "rw",
+    "name": "Kinyarwanda",
+    "nativeName": "Ikinyarwanda",
+    "country": "Rwanda",
+    "ttsPrefix": "rw-RW"
+  },
+  {
+    "code": "ny",
+    "name": "Chichewa",
+    "nativeName": "Chichewa",
+    "country": "Malawi",
+    "ttsPrefix": "ny-MW"
+  },
+  {
+    "code": "gd",
+    "name": "Scottish Gaelic",
+    "nativeName": "Gàidhlig",
+    "country": "United Kingdom",
+    "ttsPrefix": "gd-GB"
+  },
+  {
+    "code": "eu",
+    "name": "Basque",
+    "nativeName": "Euskara",
+    "country": "Spain",
+    "ttsPrefix": "eu-ES"
+  },
+  {
+    "code": "gl",
+    "name": "Galician",
+    "nativeName": "Galego",
+    "country": "Spain",
+    "ttsPrefix": "gl-ES"
+  },
+  {
+    "code": "ca",
+    "name": "Catalan",
+    "nativeName": "Català",
+    "country": "Spain",
+    "ttsPrefix": "ca-ES"
+  },
+  {
+    "code": "eo",
+    "name": "Esperanto",
+    "nativeName": "Esperanto",
+    "country": "International",
+    "ttsPrefix": "eo"
+  },
+  {
+    "code": "la",
+    "name": "Latin",
+    "nativeName": "Latina",
+    "country": "Vatican",
+    "ttsPrefix": "la"
+  },
+  {
+    "code": "haw",
+    "name": "Hawaiian",
+    "nativeName": "ʻŌlelo Hawaiʻi",
+    "country": "United States",
+    "ttsPrefix": "haw"
+  },
+  {
+    "code": "sm",
+    "name": "Samoan",
+    "nativeName": "Gagana Samoa",
+    "country": "Samoa",
+    "ttsPrefix": "sm"
+  },
+  {
+    "code": "mi",
+    "name": "Maori",
+    "nativeName": "Te Reo Māori",
+    "country": "New Zealand",
+    "ttsPrefix": "mi-NZ"
+  }
+];
+
+const elements = {
+  autoDubToggle: document.getElementById('auto-dub-toggle'),
+  langSelect: document.getElementById('lang-select'),
+  langSearch: document.getElementById('lang-search'),
+  autoCountryToggle: document.getElementById('auto-country-toggle'),
+  noDelayToggle: document.getElementById('nodelay-toggle'),
+  testBtn: document.getElementById('test-voice-btn')
+};
+
+let currentSettings = {
+  targetLanguage: 'hi',
+  autoDetectCountry: true,
+  autoDubEnabled: true,
+  dubVolume: 1.0,
+  speechRate: 1.15,
+  simplifyLanguage: true,
+  noDelaySync: true
+};
+
+function renderLanguageOptions(filter = '') {
+  elements.langSelect.innerHTML = '';
+  const search = filter.toLowerCase().trim();
+
+  const filtered = ALL_LANGUAGES.filter(l => 
+    l.name.toLowerCase().includes(search) || 
+    l.nativeName.toLowerCase().includes(search) || 
+    l.country.toLowerCase().includes(search) ||
+    l.code.toLowerCase().includes(search)
+  );
+
+  filtered.forEach(lang => {
+    const opt = document.createElement('option');
+    opt.value = lang.code;
+    opt.textContent = `${lang.name} (${lang.nativeName}) - ${lang.country}`;
+    if (lang.code === currentSettings.targetLanguage) {
+      opt.selected = true;
+    }
+    elements.langSelect.appendChild(opt);
+  });
+}
+
+function loadSettings() {
+  if (chrome && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['ytdub_settings'], (result) => {
+      if (result && result.ytdub_settings) {
+        currentSettings = { ...currentSettings, ...result.ytdub_settings };
+      }
+      applySettingsToUI();
+    });
+  } else {
+    applySettingsToUI();
+  }
+}
+
+function applySettingsToUI() {
+  elements.autoDubToggle.checked = currentSettings.autoDubEnabled;
+  elements.autoCountryToggle.checked = currentSettings.autoDetectCountry;
+  if (elements.noDelayToggle) {
+    elements.noDelayToggle.checked = currentSettings.noDelaySync;
+  }
+  renderLanguageOptions();
+}
+
+function broadcastSettingsRealtime() {
+  if (chrome && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ ytdub_settings: currentSettings });
+  }
+
+  if (chrome && chrome.tabs && chrome.tabs.query) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'SETTINGS_CHANGED',
+          settings: currentSettings
+        });
+      }
+    });
+  }
+}
+
+elements.langSearch.addEventListener('input', (e) => {
+  renderLanguageOptions(e.target.value);
+});
+
+elements.langSelect.addEventListener('change', (e) => {
+  currentSettings.targetLanguage = e.target.value;
+  broadcastSettingsRealtime();
+});
+
+elements.autoDubToggle.addEventListener('change', (e) => {
+  currentSettings.autoDubEnabled = e.target.checked;
+  broadcastSettingsRealtime();
+});
+
+elements.autoCountryToggle.addEventListener('change', (e) => {
+  currentSettings.autoDetectCountry = e.target.checked;
+  broadcastSettingsRealtime();
+});
+
+if (elements.noDelayToggle) {
+  elements.noDelayToggle.addEventListener('change', (e) => {
+    currentSettings.noDelaySync = e.target.checked;
+    broadcastSettingsRealtime();
+  });
+}
+
+elements.testBtn.addEventListener('click', () => {
+  const samples = {
+    si: 'ආයුබෝවන්! මෙය යූටියුබ් සිංහල හඬකැවීම් සාර්ථකව ක්‍රියාත්මක වන අයුරුයි.',
+    ta: 'வணக்கம்! இது யூடியூப் தமிழ் குரல் மாற்ற சோதனை.',
+    hi: 'नमस्ते! यह यूट्यूब हिंदी डबिंग का लाइव टेस्ट है।'
+  };
+  const text = samples[currentSettings.targetLanguage] || 'Hello! Testing live audio.';
+
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(currentSettings.targetLanguage)}&client=tw-ob&q=${encodeURIComponent(text)}`;
+  const audio = new Audio(url);
+  audio.play().catch(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = currentSettings.targetLanguage;
+    window.speechSynthesis.speak(utter);
+  });
+});
+
+loadSettings();

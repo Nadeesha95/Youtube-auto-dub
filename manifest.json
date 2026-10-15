@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Auto-Dub & 100-Language Subtitles",
+  "version": "1.3.0",
+  "description": "Zero-delay YouTube voice dubbing: 5% cue ducking, fully muted during speech, strict anti-repetition protection, and bilingual subtitles.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "https://translate.google.com/*",
+    "https://translate.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "YouTube Auto-Dub Settings",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Auto-Dub</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo-row">
+      <div class="icon-badge">🎙️</div>
+      <div>
+        <h1 class="title">YouTube Auto-Dub</h1>
+        <p class="subtitle">Sinhala, Tamil, Hindi & 100 Languages</p>
+      </div>
+    </div>
+    <div class="tier-pill" id="tier-badge">LIVE SYNC</div>
+  </div>
+
+  <div class="container">
+    <!-- Master Auto-Dub Switch -->
+    <div class="card">
+      <div class="switch-row">
+        <div>
+          <label class="font-bold text-white">Voice Auto-Dubbing</label>
+          <p class="desc">Speaks in real time over video</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="auto-dub-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Original Sound Behavior Info -->
+    <div class="card" style="border-color: #0284c7;">
+      <div class="font-bold text-white flex items-center gap-1.5">
+        <span>🔇 Smart Two-Stage Audio Ducking</span>
+      </div>
+      <p class="desc" style="color: #cbd5e1; margin-top: 4px; line-height: 1.4;">
+        Original video sound reduces to <strong>5%</strong> when line starts, and is <strong>FULLY MUTED (0%)</strong> while dubbing speaks, restoring when silent.
+      </p>
+    </div>
+
+    <!-- Target Language (Realtime instant update) -->
+    <div class="card">
+      <label class="field-label" for="lang-select">Target Dub Language</label>
+      <div class="search-box">
+        <input type="text" id="lang-search" placeholder="Search 100 languages (Hindi, Sinhala, Tamil)..." />
+      </div>
+      <select id="lang-select" class="select-field">
+        <!-- Filled dynamically -->
+      </select>
+
+      <div class="checkbox-row" style="margin-top: 10px;">
+        <input type="checkbox" id="auto-country-toggle" checked>
+        <label for="auto-country-toggle" class="desc">Auto-detect country language</label>
+      </div>
+    </div>
+
+    <!-- Zero-Delay & Anti-Repetition -->
+    <div class="card">
+      <div class="switch-row">
+        <div>
+          <label class="font-bold text-white">Anti-Repetition Guard</label>
+          <p class="desc">Prevents repeated captions or loop playback</p>
+        </div>
+        <span class="status-tag">ACTIVE</span>
+      </div>
+
+      <div class="switch-row" style="margin-top: 10px;">
+        <div>
+          <label class="font-bold text-white">Zero-Delay Audio Sync</label>
+          <p class="desc">Pre-buffers audio and matches scene tempo</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="nodelay-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <button id="test-voice-btn" class="primary-btn">
+      🔊 Test Sinhala / Tamil / Hindi Voice
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
