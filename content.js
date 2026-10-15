@@ -221,14 +221,16 @@
           clearTimeout(clip.timer);
           onEnd();
         };
-        if (!synth) return finish();
+        // No installed voice for this language (common for Sinhala, Tamil, Bengali…): stay silent
+        // rather than reading the text with a wrong-language voice.
+        const v = pickVoice(lang);
+        if (!synth || !v) return finish();
         const u = new SpeechSynthesisUtterance(text);
         u.lang = ttsLang(lang);
         u.rate = rate;
         u.pitch = settings.speechPitch || 1.0;
         u.volume = volume;
-        const v = pickVoice(lang);
-        if (v) u.voice = v;
+        u.voice = v;
         u.onend = finish;
         u.onerror = finish;
         clip.started = true;
@@ -247,76 +249,102 @@
     return clip;
   }
 
-  function createCloudClip(text, lang) {
-    const parts = splitForTts(text);
-    const tl = encodeURIComponent(ttsLang(lang));
-    const audios = parts.map(p => {
-      const a = new Audio();
-      a.preload = 'auto';
-      a.src = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(p)}`;
-      return a;
+  // Voice audio is downloaded by the background worker: Google's TTS rejects requests that carry a
+  // youtube.com Referer, which is what an <audio> element on this page would send.
+  function loadTtsAudio(text, lang) {
+    return new Promise(resolve => {
+      try {
+        chrome.runtime.sendMessage({ action: 'TTS', text, lang: ttsLang(lang) }, res => {
+          if (chrome.runtime.lastError || !res || !res.audio) return resolve(null);
+          const bin = atob(res.audio);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          resolve(URL.createObjectURL(new Blob([bytes], { type: res.mime || 'audio/mpeg' })));
+        });
+      } catch (e) {
+        resolve(null);
+      }
     });
+  }
 
+  function createCloudClip(text, lang) {
     let index = 0;
     let loaded = 0;
     const clip = {
       text, lang,
-      duration: null, failed: false, stopped: false,
-      current: null, fallback: null, onReady: null,
+      duration: null, failed: false, stopped: false, released: false,
+      fallback: null, onReady: null,
       play(rate, volume, onEnd) {
         const finish = () => {
           if (clip.stopped) return;
-          clip.stopped = true;
+          clip.stop();
           onEnd();
         };
         const useFallback = () => {
           if (clip.stopped || clip.fallback) return;
-          clip.fallback = createSynthClip(parts.slice(index).join(' '), lang);
-          clip.fallback.play(rate, volume, () => {
-            if (!clip.stopped) { clip.stopped = true; onEnd(); }
-          });
+          clip.fallback = createSynthClip(parts.slice(index).map(p => p.text).join(' '), lang);
+          clip.fallback.play(rate, volume, finish);
         };
         const next = () => {
           if (clip.stopped) return;
-          if (index >= audios.length) return finish();
-          const a = audios[index];
-          clip.current = a;
-          a.playbackRate = rate;
-          a.volume = Math.max(0, Math.min(1, volume));
-          a.onended = () => { index++; next(); };
-          a.onerror = useFallback;
-          a.play().catch(useFallback);
+          if (index >= parts.length) return finish();
+          const part = parts[index];
+          part.ready.then(ok => {
+            if (clip.stopped) return;
+            if (!ok) return useFallback();
+            const a = part.audio;
+            a.playbackRate = rate;
+            a.volume = Math.max(0, Math.min(1, volume));
+            a.onended = () => { index++; next(); };
+            a.onerror = useFallback;
+            a.play().catch(useFallback);
+          });
         };
-        if (clip.failed) useFallback();
-        else next();
+        next();
       },
       setVolume(v) {
         const vol = Math.max(0, Math.min(1, v));
-        audios.forEach(a => { a.volume = vol; });
+        parts.forEach(p => { p.audio.volume = vol; });
       },
+      // A clip is never replayed, so stopping also frees its audio.
       stop() {
         clip.stopped = true;
-        audios.forEach(a => {
-          a.onended = null;
-          a.onerror = null;
-          a.pause();
-        });
         if (clip.fallback) clip.fallback.stop();
+        if (clip.released) return;
+        clip.released = true;
+        parts.forEach(p => {
+          p.audio.onended = null;
+          p.audio.onerror = null;
+          p.audio.pause();
+          if (p.url) {
+            p.audio.removeAttribute('src');
+            p.audio.load();
+            URL.revokeObjectURL(p.url);
+          }
+        });
       },
       dispose() {
         clip.stop();
-        audios.forEach(a => { a.removeAttribute('src'); a.load(); });
       },
     };
 
-    audios.forEach(a => {
-      a.addEventListener('loadedmetadata', () => {
-        if (++loaded !== audios.length) return;
-        clip.duration = audios.reduce((s, x) => s + (isFinite(x.duration) ? x.duration : 0), 0);
+    const parts = splitForTts(text).map(t => {
+      const part = { text: t, audio: new Audio(), url: null };
+      part.audio.preload = 'auto';
+      part.audio.addEventListener('loadedmetadata', () => {
+        if (++loaded !== parts.length) return;
+        clip.duration = parts.reduce((s, p) => s + (isFinite(p.audio.duration) ? p.audio.duration : 0), 0);
         learnCps(lang, text.length, clip.duration);
         if (clip.onReady) clip.onReady();
       }, { once: true });
-      a.addEventListener('error', () => { clip.failed = true; }, { once: true });
+      part.ready = loadTtsAudio(t, lang).then(url => {
+        if (!url) { clip.failed = true; return false; }
+        if (clip.released) { URL.revokeObjectURL(url); return false; }
+        part.url = url;
+        part.audio.src = url;
+        return true;
+      });
+      return part;
     });
     return clip;
   }

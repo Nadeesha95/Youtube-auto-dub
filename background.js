@@ -34,7 +34,33 @@ function cacheSet(key, value) {
   translationCache.set(key, value);
 }
 
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+// Google's TTS returns 404 when the request carries a youtube.com Referer, so the voice cannot be
+// loaded by an <audio> element on the YouTube page. Fetch it here (no referrer) and hand back the bytes.
+function fetchTts(text, lang, sendResponse) {
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(lang)}&q=${encodeURIComponent(text)}`;
+  fetch(url, { referrerPolicy: 'no-referrer', credentials: 'omit' })
+    .then(res => {
+      const type = res.headers.get('content-type') || '';
+      if (!res.ok || !type.startsWith('audio/')) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer().then(buf => sendResponse({ audio: toBase64(buf), mime: type.split(';')[0] }));
+    })
+    .catch(() => sendResponse(null));
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'TTS') {
+    fetchTts(request.text, request.lang, sendResponse);
+    return true;
+  }
   if (request.action !== 'TRANSLATE') return false;
 
   const { text, targetLang } = request;
