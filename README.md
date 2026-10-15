@@ -9,12 +9,14 @@
 2. **Fast speech / long languages** ("Smart simplify"): some languages (e.g. Sinhala) take much
    longer to say than the original. For every upcoming line the extension compares the translation's
    spoken length (learned from the real voice) with the time available, and if it will not fit:
-   - The sentence is rewritten in fewer, simpler words **in English** to a word budget, and that
-     shorter meaning is translated and spoken. Subtitles still show the full translation.
-   - Rewriting uses **Chrome's on-device AI (Gemini Nano)** when the computer supports it (free,
-     private; download it once from the popup), otherwise built-in rules
-     ("I'm going to" → "I will", "in order to" → "to", drops filler, asides and "which…" clauses,
-     always keeping the main clause).
+   - With a **Gemini API key** (free tier from https://aistudio.google.com/apikey, pasted into the
+     popup), Gemini writes a short, natural spoken line directly in the target language. Lines are
+     batched (up to 20 per request, at most one request every 6 s) to stay inside free-tier limits.
+     Note: on the free tier Google may use the submitted subtitle text to improve its products.
+   - Without a key, or if Gemini is unavailable, rate-limited or blocked by the network, built-in
+     rules rewrite the English sentence in fewer words ("I'm going to" → "I will", "in order to" →
+     "to", drops filler, asides and "which…" clauses, always keeping the main clause) and that is
+     translated. Subtitles always show the full translation.
    - The voice also speeds up to fit (up to "Max catch-up speed"), and if the dub still falls
      behind, stale lines are skipped so the voice follows what is being said now.
 3. **Smooth audio ducking**: the original audio fades to the level you choose while the dub speaks and

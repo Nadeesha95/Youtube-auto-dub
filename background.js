@@ -1,8 +1,6 @@
 /**
  * YouTube Auto-Dub Background Service Worker (Manifest V3)
  */
-importScripts('ai.js');
-
 const DEFAULT_SETTINGS = {
   targetLanguage: 'hi',
   autoDubEnabled: true,
@@ -158,53 +156,157 @@ function ruleShorten(text, maxWords) {
   return t || text;
 }
 
-let aiUnsupportedUntil = 0;
-let offscreenReady = null;
+// ---------------------------------------------------------------- Gemini (free tier, user's own key)
+// Lines are batched (up to GEMINI_BATCH per request, one request every GEMINI_MIN_INTERVAL_MS) so a
+// whole video stays well inside the free-tier rate limits. Any failure falls back to the rules.
 
-function ensureOffscreen() {
-  if (!offscreenReady) {
-    offscreenReady = chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: ['WORKERS'],
-      justification: 'Runs the on-device language model that simplifies dubbed lines.'
-    }).catch(err => {
-      if (!/single offscreen/i.test(String(err && err.message))) offscreenReady = null;
-    });
-  }
-  return offscreenReady;
-}
+const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
+const GEMINI_BATCH = 20;
+const GEMINI_COLLECT_MS = 1500;
+const GEMINI_MIN_INTERVAL_MS = 6000;
+const GEMINI_TIMEOUT_MS = 20000;
 
-async function aiShorten(text, maxWords) {
-  if (Date.now() < aiUnsupportedUntil) return null;
-  if (self.ytdubAi.supported()) return self.ytdubAi.shorten(text, maxWords);
-  if (!chrome.offscreen) return null;
-  await ensureOffscreen();
-  const res = await new Promise(resolve => {
-    chrome.runtime.sendMessage({ target: 'offscreen', action: 'AI_SHORTEN', text, maxWords }, r => {
-      resolve(chrome.runtime.lastError ? null : r);
-    });
+const gemini = { queue: [], timer: 0, busy: false, nextAt: 0, blockedUntil: 0, modelIndex: 0, lastError: '' };
+
+function getGeminiKey() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['ytdub_gemini_key'], r => resolve((r && r.ytdub_gemini_key || '').trim()));
   });
-  if (res && res.unsupported) aiUnsupportedUntil = Date.now() + 10 * 60 * 1000;
-  return (res && res.text) || null;
 }
 
-async function shortenForDub({ text, sourceLang, targetLang, ratio, useAI }) {
+function languageName(code) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code;
+  } catch (e) {
+    return code;
+  }
+}
+
+function geminiPrompt(targetLang) {
+  const lang = languageName(targetLang);
+  return 'You write voice-over lines for dubbing videos into ' + lang + '. ' +
+    'For each input line, write what the dubbing voice should say in ' + lang + ': the same core meaning ' +
+    'in simple, natural, everyday spoken ' + lang + ', no longer than maxChars characters. ' +
+    'Drop filler words, repetition, hedging and minor details. Keep names, numbers and the main point. ' +
+    'Never add information. Return one item per input line with the same id.';
+}
+
+async function callGemini(key, targetLang, items) {
+  const body = {
+    systemInstruction: { parts: [{ text: geminiPrompt(targetLang) }] },
+    contents: [{
+      role: 'user',
+      parts: [{ text: JSON.stringify(items.map((it, id) => ({ id, maxChars: it.maxChars, text: it.text }))) }]
+    }],
+    generationConfig: {
+      temperature: 0.3,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: { id: { type: 'INTEGER' }, text: { type: 'STRING' } },
+          required: ['id', 'text']
+        }
+      }
+    }
+  };
+
+  while (gemini.modelIndex < GEMINI_MODELS.length) {
+    const model = GEMINI_MODELS[gemini.modelIndex];
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS)
+    });
+    if (!(res.headers.get('content-type') || '').includes('json')) {
+      gemini.blockedUntil = Date.now() + 10 * 60 * 1000;
+      throw new Error('The network blocks the Gemini API (firewall or proxy).');
+    }
+    if (res.status === 404) { gemini.modelIndex++; continue; } // model retired: try the next one
+    if (res.status === 429) {
+      gemini.blockedUntil = Date.now() + 60 * 1000;
+      throw new Error('Free-tier limit reached; using built-in rules for a minute.');
+    }
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      gemini.blockedUntil = Date.now() + 5 * 60 * 1000;
+      throw new Error('Gemini rejected the API key.');
+    }
+    if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+    const data = await res.json();
+    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const text = (parts || []).map(p => p.text || '').join('');
+    return JSON.parse(text);
+  }
+  throw new Error('No supported Gemini model found.');
+}
+
+function scheduleGemini() {
+  if (gemini.timer || gemini.busy || !gemini.queue.length) return;
+  const wait = Math.max(GEMINI_COLLECT_MS, gemini.nextAt - Date.now());
+  gemini.timer = setTimeout(flushGemini, wait);
+}
+
+async function flushGemini() {
+  gemini.timer = 0;
+  if (!gemini.queue.length) return;
+  const lang = gemini.queue[0].targetLang;
+  const batch = gemini.queue.filter(it => it.targetLang === lang).slice(0, GEMINI_BATCH);
+  gemini.queue = gemini.queue.filter(it => !batch.includes(it));
+  gemini.busy = true;
+  gemini.nextAt = Date.now() + GEMINI_MIN_INTERVAL_MS;
+  try {
+    const key = await getGeminiKey();
+    if (!key || Date.now() < gemini.blockedUntil) throw new Error('Gemini not available');
+    const out = await callGemini(key, lang, batch);
+    gemini.lastError = '';
+    const byId = new Map((Array.isArray(out) ? out : []).map(o => [o.id, (o.text || '').trim()]));
+    batch.forEach((it, id) => {
+      const text = byId.get(id);
+      // Reject answers that ignore the length budget badly; the rules path takes over then.
+      it.resolve(text && text.length <= it.maxChars * 1.5 ? text : null);
+    });
+  } catch (e) {
+    if (e && e.message !== 'Gemini not available') gemini.lastError = e.message;
+    batch.forEach(it => it.resolve(null));
+  } finally {
+    gemini.busy = false;
+    scheduleGemini();
+  }
+}
+
+async function geminiShorten(text, targetLang, maxChars) {
+  if (Date.now() < gemini.blockedUntil || !(await getGeminiKey())) return null;
+  return new Promise(resolve => {
+    gemini.queue.push({ text, targetLang, maxChars, resolve });
+    scheduleGemini();
+  });
+}
+
+async function shortenForDub({ text, sourceLang, targetLang, ratio, maxChars, useAI }) {
   const cacheKey = `${targetLang}:${ratio.toFixed(2)}:${useAI ? 'ai' : 'r'}:${text}`;
   if (shortenCache.has(cacheKey)) return shortenCache.get(cacheKey);
 
-  // Shorten in English (best supported by the model and the rules), then translate.
+  // Gemini writes the short spoken line directly in the target language.
+  const direct = useAI && maxChars ? await geminiShorten(text, targetLang, maxChars) : null;
+  if (direct) {
+    const result = { translatedText: direct, method: 'gemini' };
+    cacheSet(shortenCache, cacheKey, result);
+    return result;
+  }
+
+  // Rules: shorten in English, then translate.
   let english = text;
   if (!/^en\b/i.test(sourceLang || '')) english = (await translateText(text, 'en')).translatedText || text;
 
   const maxWords = Math.max(3, Math.floor(countWords(english) * ratio));
-  let short = useAI ? await aiShorten(english, maxWords) : null;
-  const method = short ? 'ai' : 'rules';
-  if (!short) short = ruleShorten(english, maxWords);
-  if (short === english && method === 'rules' && countWords(english) <= maxWords) return null;
+  const short = ruleShorten(english, maxWords);
+  if (short === english && countWords(english) <= maxWords) return null;
 
   const translated = /^en\b/i.test(targetLang) ? short : (await translateText(short, targetLang)).translatedText;
   if (!translated) return null;
-  const result = { translatedText: translated, shortSource: short, method };
+  const result = { translatedText: translated, shortSource: short, method: 'rules' };
   cacheSet(shortenCache, cacheKey, result);
   return result;
 }
@@ -212,7 +314,7 @@ async function shortenForDub({ text, sourceLang, targetLang, ratio, useAI }) {
 // ---------------------------------------------------------------- messages
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (!request || request.target === 'offscreen') return false;
+  if (!request) return false;
 
   if (request.action === 'TTS') {
     fetchTts(request.text, request.lang, sendResponse);
@@ -223,6 +325,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then(sendResponse)
       .catch(() => sendResponse(null)); // content script retries later
     return true;
+  }
+  if (request.action === 'GEMINI_STATUS') {
+    sendResponse({ lastError: gemini.lastError, blocked: Date.now() < gemini.blockedUntil });
+    return false;
   }
   if (request.action === 'SHORTEN') {
     shortenForDub(request)

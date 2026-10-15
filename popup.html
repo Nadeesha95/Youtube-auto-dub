@@ -87,15 +87,20 @@
 
       <div class="switch-row" style="margin-top: 10px;">
         <div>
-          <label class="font-bold text-white" for="ai-toggle">Use on-device AI to simplify</label>
-          <p class="desc" id="ai-status">Checking…</p>
+          <label class="font-bold text-white" for="ai-toggle">Use Gemini AI to simplify</label>
+          <p class="desc">Writes short, natural lines directly in your language. Free with your own Google AI Studio key.</p>
         </div>
         <label class="switch">
           <input type="checkbox" id="ai-toggle" checked>
           <span class="slider"></span>
         </label>
       </div>
-      <button id="ai-download-btn" class="secondary-btn" hidden>Download AI model (one-time)</button>
+      <div class="key-row">
+        <input type="password" id="gemini-key" placeholder="Paste Gemini API key" autocomplete="off" spellcheck="false">
+        <button id="gemini-save-btn" class="secondary-btn">Save</button>
+      </div>
+      <p class="desc" id="ai-status"></p>
+      <button id="gemini-get-key" class="link-btn">Get a free key at aistudio.google.com/apikey</button>
     </div>
 
     <!-- Subtitles & voice -->
