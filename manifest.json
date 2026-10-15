@@ -5,13 +5,13 @@
   "description": "Real-time YouTube voice dubbing in 100 languages: transcript-synced, pre-buffered voice, smart condensing for fast speech, smooth audio ducking and bilingual subtitles.",
   "permissions": [
     "storage",
-    "activeTab",
-    "offscreen"
+    "activeTab"
   ],
   "host_permissions": [
     "*://*.youtube.com/*",
     "https://translate.google.com/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://generativelanguage.googleapis.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

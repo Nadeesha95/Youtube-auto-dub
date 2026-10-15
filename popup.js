@@ -732,7 +732,9 @@ const elements = {
   simplifyToggle: $('simplify-toggle'),
   aiToggle: $('ai-toggle'),
   aiStatus: $('ai-status'),
-  aiDownloadBtn: $('ai-download-btn'),
+  geminiKey: $('gemini-key'),
+  geminiSaveBtn: $('gemini-save-btn'),
+  geminiGetKey: $('gemini-get-key'),
   subtitlesToggle: $('subtitles-toggle'),
   subtitleMode: $('subtitle-mode'),
   ttsEngine: $('tts-engine'),
@@ -876,51 +878,55 @@ chrome.storage.local.get(['ytdub_settings'], (result) => {
 });
 refreshStatus();
 
-// ---- Chrome built-in AI (Gemini Nano) used to rewrite long lines in simpler words
-const AI_OPTIONS = {
-  expectedInputs: [{ type: 'text', languages: ['en'] }],
-  expectedOutputs: [{ type: 'text', languages: ['en'] }]
-};
-const RULES_NOTE = 'Built-in rewrite rules are used instead.';
+// ---- Gemini API key (free tier) used to rewrite long lines into short spoken ones.
+// Stored separately from the settings so it never reaches the YouTube page's content script.
+const KEY_STORAGE = 'ytdub_gemini_key';
 
-async function refreshAiStatus() {
-  elements.aiDownloadBtn.hidden = true;
-  if (typeof LanguageModel === 'undefined') {
-    elements.aiStatus.textContent = `Needs Chrome 138 or newer. ${RULES_NOTE}`;
+function setAiStatus(text, kind = '') {
+  elements.aiStatus.textContent = text;
+  elements.aiStatus.className = `desc ${kind}`;
+}
+
+async function checkGeminiKey(key) {
+  if (!key) {
+    setAiStatus('No key yet: built-in rewrite rules are used instead.');
     return;
   }
-  let availability = 'unavailable';
-  try { availability = await LanguageModel.availability(AI_OPTIONS); } catch (e) { /* treat as unavailable */ }
-  if (availability === 'available') {
-    elements.aiStatus.textContent = 'Ready. Long lines are rewritten in simpler words, privately on this computer.';
-  } else if (availability === 'downloadable') {
-    elements.aiStatus.textContent = `The AI model is not downloaded yet. ${RULES_NOTE}`;
-    elements.aiDownloadBtn.hidden = false;
-  } else if (availability === 'downloading') {
-    elements.aiStatus.textContent = 'Downloading the AI model in the background…';
-  } else {
-    elements.aiStatus.textContent = `This computer can't run Chrome's on-device AI. ${RULES_NOTE}`;
+  setAiStatus('Checking key…');
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
+      headers: { 'x-goog-api-key': key }
+    });
+    // A firewall or proxy (e.g. a company network) answers with its own HTML page instead of Google's JSON.
+    if (!(res.headers.get('content-type') || '').includes('json')) {
+      setAiStatus('Your network blocks the Gemini API (e.g. a company firewall). Built-in rules are used instead.', 'warn');
+    } else if (res.ok) {
+      chrome.runtime.sendMessage({ action: 'GEMINI_STATUS' }, (st) => {
+        if (chrome.runtime.lastError || !st || !st.lastError) return setAiStatus('Key works. Long lines are simplified by Gemini.', 'ok');
+        setAiStatus(`Key works, but last request: ${st.lastError}`, 'warn');
+      });
+    } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+      setAiStatus('Google rejected this key. Check that you copied all of it.', 'warn');
+    } else {
+      setAiStatus(`Could not check the key (HTTP ${res.status}). Built-in rules are used meanwhile.`, 'warn');
+    }
+  } catch (e) {
+    setAiStatus('Could not reach Gemini. Built-in rules are used meanwhile.', 'warn');
   }
 }
 
-elements.aiDownloadBtn.addEventListener('click', async () => {
-  elements.aiDownloadBtn.disabled = true;
-  try {
-    const session = await LanguageModel.create({
-      ...AI_OPTIONS,
-      monitor(m) {
-        m.addEventListener('downloadprogress', (e) => {
-          elements.aiStatus.textContent = `Downloading the AI model… ${Math.round(e.loaded * 100)}% (keeps going if you close this popup)`;
-        });
-      }
-    });
-    session.destroy();
-  } catch (e) {
-    elements.aiStatus.textContent = `Download failed. ${RULES_NOTE}`;
-  }
-  elements.aiDownloadBtn.disabled = false;
-  refreshAiStatus();
+elements.geminiSaveBtn.addEventListener('click', () => {
+  const key = elements.geminiKey.value.trim();
+  chrome.storage.local.set({ [KEY_STORAGE]: key }, () => checkGeminiKey(key));
 });
 
-refreshAiStatus();
+elements.geminiGetKey.addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://aistudio.google.com/apikey' });
+});
+
+chrome.storage.local.get([KEY_STORAGE], (r) => {
+  const key = (r && r[KEY_STORAGE]) || '';
+  elements.geminiKey.value = key;
+  checkGeminiKey(key);
+});
 setInterval(refreshStatus, 2000);
