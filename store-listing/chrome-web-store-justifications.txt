@@ -77,10 +77,14 @@ Certifications (tick all three):
 PRIVACY POLICY URL
 ======================================================================
 
-Required because "Website content" is declared above. Publish a short privacy policy page
-(for example on https://nadeesha95.github.io/) that states:
-  - Caption text of the video being watched is sent to Google Translate (translation and
-    text-to-speech) only to provide subtitles and dubbing.
-  - Settings and usage counters are stored only on the user's device.
-  - No personal data is collected, sold or shared with the developer or anyone else.
-Then paste that page's URL into the "Privacy policy" field.
+https://nadeesha95.github.io/youtube-auto-dub/privacy-policy.html
+
+(Required because "Website content" is declared above. The page is live once the
+Nadeesha95.github.io repo is pushed.)
+
+======================================================================
+STORE LISTING - OTHER URLS
+======================================================================
+
+Homepage URL:  https://nadeesha95.github.io/youtube-auto-dub/
+Support URL:   https://nadeesha95.github.io/youtube-auto-dub/#faq
