@@ -19,8 +19,13 @@ const CACHE_LIMIT = 3000;
 const translationCache = new Map();
 const shortenCache = new Map();
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.storage.local.remove('ytdub_gemini_key'); // left over from the removed Gemini option
+  // A fresh install starts with subtitles and dubbing switched on.
+  if (details.reason === 'install') {
+    chrome.storage.local.set({ ytdub_settings: { ...DEFAULT_SETTINGS } });
+    return;
+  }
   // Merge so users upgrading from an older version get the new keys without losing their choices.
   chrome.storage.local.get(['ytdub_settings'], (result) => {
     chrome.storage.local.set({

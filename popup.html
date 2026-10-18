@@ -12,25 +12,36 @@
       <div class="icon-badge">🎙️</div>
       <div>
         <h1 class="title">YouTube Auto-Dub</h1>
-        <p class="subtitle">Sinhala, Tamil, Hindi & 100 Languages</p>
+        <p class="subtitle">
+          Sinhala, Tamil, Hindi & 100 Languages ·
+          <a href="https://github.com/Nadeesha95" target="_blank" rel="noopener" class="dev-link">Developer</a>
+        </p>
       </div>
     </div>
   </div>
 
   <div class="container">
     <!-- Main switches -->
-    <div class="main-toggles">
-      <button type="button" class="big-toggle" id="subtitles-toggle" aria-pressed="true">
-        <span class="big-toggle-icon">💬</span>
-        <span class="big-toggle-label">Translated Subtitles</span>
-        <span class="big-toggle-state"></span>
+    <div class="main-card">
+      <button type="button" class="main-row" id="subtitles-toggle" role="switch" aria-checked="true">
+        <span class="main-icon">💬</span>
+        <span class="main-text">
+          <span class="main-label">Translated Subtitles</span>
+          <span class="main-desc">Shows the translation on the video</span>
+        </span>
+        <span class="main-switch" aria-hidden="true"></span>
       </button>
-      <button type="button" class="big-toggle" id="auto-dub-toggle" aria-pressed="true">
-        <span class="big-toggle-icon">🎙️</span>
-        <span class="big-toggle-label">Auto Dub</span>
-        <span class="big-toggle-state"></span>
+      <button type="button" class="main-row" id="auto-dub-toggle" role="switch" aria-checked="true">
+        <span class="main-icon">🎙️</span>
+        <span class="main-text">
+          <span class="main-label">Auto Dub</span>
+          <span class="main-desc">Speaks the translation in sync</span>
+        </span>
+        <span class="main-switch" aria-hidden="true"></span>
       </button>
     </div>
+
+    <button id="test-voice-btn" class="test-btn">🔊 Test voice</button>
 
     <div class="status-line" id="status-line">Checking this tab…</div>
 
@@ -113,7 +124,6 @@
             </select>
           </div>
         </div>
-        <button id="test-voice-btn" class="primary-btn">🔊 Test voice</button>
       </div>
     </details>
   </div>

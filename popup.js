@@ -779,8 +779,7 @@ function renderLabels() {
 }
 
 function renderBigToggle(button, on) {
-  button.setAttribute('aria-pressed', String(on));
-  button.querySelector('.big-toggle-state').textContent = on ? 'ON' : 'OFF';
+  button.setAttribute('aria-checked', String(on));
 }
 
 function applySettingsToUI() {
