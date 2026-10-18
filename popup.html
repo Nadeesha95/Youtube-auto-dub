@@ -45,14 +45,21 @@
 
     <div class="status-line" id="status-line">Checking this tab…</div>
 
+    <div class="usage" id="usage">
+      <div class="usage-row">
+        <span class="plan-badge" id="usage-plan">Free</span>
+        <span class="usage-text" id="usage-text"></span>
+      </div>
+      <div class="usage-bar" id="usage-bar" hidden><span id="usage-fill"></span></div>
+    </div>
+
     <!-- Language -->
     <details class="section" data-section="language">
       <summary><span>🌐 Language</span><span class="summary-value" id="summary-language"></span></summary>
       <div class="section-body">
-        <div class="search-box">
-          <input type="text" id="lang-search" placeholder="Search 100 languages (Hindi, Sinhala, Tamil)..." />
-        </div>
-        <select id="lang-select" class="select-field" aria-label="Target language"></select>
+        <input type="search" id="lang-search" class="lang-search" placeholder="Search languages or countries…"
+               autocomplete="off" spellcheck="false" aria-controls="lang-list">
+        <div id="lang-list" class="lang-list" role="listbox" aria-label="Target language"></div>
       </div>
     </details>
 
@@ -128,6 +135,7 @@
     </details>
   </div>
 
+  <script src="plans.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

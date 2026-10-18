@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Auto-Dub & 100-Language Subtitles",
-  "version": "2.1.0",
-  "description": "Real-time YouTube voice dubbing in 100 languages: transcript-synced, pre-buffered voice, smart condensing for fast speech, smooth audio ducking and bilingual subtitles.",
+  "name": "YouTube Auto-Dub & 100 Language Subtitles",
+  "version": "2.2.0",
+  "description": "Real time YouTube voice dubbing in 100 languages: transcript-synced, pre-buffered voice, smart condensing for fast speech, smooth audio ducking and bilingual subtitles.",
   "permissions": [
     "storage",
     "activeTab"
@@ -42,6 +42,7 @@
         "*://*.youtube.com/*"
       ],
       "js": [
+        "plans.js",
         "content.js"
       ],
       "css": [

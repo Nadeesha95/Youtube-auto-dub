@@ -1,6 +1,8 @@
 /**
  * YouTube Auto-Dub Background Service Worker (Manifest V3)
  */
+importScripts('plans.js');
+
 const DEFAULT_SETTINGS = {
   targetLanguage: 'hi',
   autoDubEnabled: true,
@@ -182,9 +184,33 @@ async function shortenForDub({ text, sourceLang, targetLang, ratio }) {
 
 // ---------------------------------------------------------------- messages
 
+// ---------------------------------------------------------------- usage
+// All tabs report here, and writes are serialized so concurrent tabs cannot overwrite each other.
+
+let usageWrite = Promise.resolve();
+
+function recordUsage(dubSeconds, lines) {
+  usageWrite = usageWrite.then(() => new Promise(resolve => {
+    chrome.storage.local.get(['ytdub_usage'], (r) => {
+      const u = ytdubCurrentUsage(r.ytdub_usage);
+      u.dubSecondsToday += dubSeconds;
+      u.dubSecondsMonth += dubSeconds;
+      u.dubSecondsTotal += dubSeconds;
+      u.linesToday += lines;
+      chrome.storage.local.set({ ytdub_usage: u }, resolve);
+    });
+  }));
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!request) return false;
 
+  if (request.action === 'USAGE') {
+    const seconds = Math.max(0, Math.min(Number(request.dubSeconds) || 0, 3600));
+    const lines = Math.max(0, Math.min(Number(request.lines) || 0, 1000));
+    if (seconds || lines) recordUsage(seconds, lines);
+    return false;
+  }
   if (request.action === 'TTS') {
     fetchTts(request.text, request.lang, sendResponse);
     return true;

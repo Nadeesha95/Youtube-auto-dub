@@ -723,7 +723,7 @@ const $ = (id) => document.getElementById(id);
 const elements = {
   autoDubToggle: $('auto-dub-toggle'),
   subtitlesToggle: $('subtitles-toggle'),
-  langSelect: $('lang-select'),
+  langList: $('lang-list'),
   langSearch: $('lang-search'),
   dubVolume: $('dub-volume'),
   originalVolume: $('original-volume'),
@@ -738,24 +738,59 @@ const elements = {
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 
-function renderLanguageOptions(filter = '') {
-  elements.langSelect.innerHTML = '';
+// Searchable list: every row is a button, so clicking any language (including the only match)
+// always selects it — unlike a filtered <select>, where the auto-shown first match never fires 'change'.
+function matchingLanguages(filter) {
   const search = filter.toLowerCase().trim();
-
-  const filtered = ALL_LANGUAGES.filter(l =>
+  return ALL_LANGUAGES.filter(l =>
     l.name.toLowerCase().includes(search) ||
     l.nativeName.toLowerCase().includes(search) ||
     l.country.toLowerCase().includes(search) ||
-    l.code.toLowerCase().includes(search)
+    l.code.toLowerCase() === search
   );
+}
 
-  filtered.forEach(lang => {
-    const opt = document.createElement('option');
-    opt.value = lang.code;
-    opt.textContent = `${lang.name} (${lang.nativeName}) - ${lang.country}`;
-    if (lang.code === currentSettings.targetLanguage) opt.selected = true;
-    elements.langSelect.appendChild(opt);
+function renderLanguageList() {
+  const list = elements.langList;
+  list.textContent = '';
+  const matches = matchingLanguages(elements.langSearch.value);
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lang-empty';
+    empty.textContent = 'No language found';
+    list.appendChild(empty);
+    return;
+  }
+  matches.forEach(lang => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lang-option';
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', String(lang.code === currentSettings.targetLanguage));
+    btn.dataset.code = lang.code;
+    const name = document.createElement('span');
+    name.textContent = lang.name;
+    const native = document.createElement('span');
+    native.className = 'native';
+    native.textContent = lang.nativeName !== lang.name ? lang.nativeName : '';
+    const country = document.createElement('span');
+    country.className = 'country';
+    country.textContent = lang.country;
+    btn.append(name, native, country);
+    list.appendChild(btn);
   });
+}
+
+function selectLanguage(code) {
+  update({ targetLanguage: code });
+  elements.langSearch.value = '';
+  renderLanguageList();
+  scrollSelectedLanguageIntoView();
+}
+
+function scrollSelectedLanguageIntoView() {
+  const selected = elements.langList.querySelector('[aria-selected="true"]');
+  if (selected) selected.scrollIntoView({ block: 'nearest' });
 }
 
 const percent = (v) => `${Math.round(v * 100)}%`;
@@ -793,7 +828,7 @@ function applySettingsToUI() {
   elements.subtitleMode.value = currentSettings.subtitleMode === 'bilingual' ? 'bilingual' : 'dubbed';
   elements.ttsEngine.value = currentSettings.ttsEngine === 'local' ? 'local' : 'auto';
   renderLabels();
-  renderLanguageOptions(elements.langSearch.value);
+  renderLanguageList();
 }
 
 // The content script listens to storage changes, so every write applies to the video immediately.
@@ -826,8 +861,28 @@ function bindRange(el, key, toValue) {
 
 bindBigToggle(elements.autoDubToggle, 'autoDubEnabled');
 bindBigToggle(elements.subtitlesToggle, 'subtitlesEnabled');
-elements.langSearch.addEventListener('input', (e) => renderLanguageOptions(e.target.value));
-elements.langSelect.addEventListener('change', (e) => update({ targetLanguage: e.target.value }));
+elements.langSearch.addEventListener('input', renderLanguageList);
+elements.langSearch.addEventListener('keydown', (e) => {
+  const first = elements.langList.querySelector('.lang-option');
+  if (e.key === 'Enter' && first) { e.preventDefault(); selectLanguage(first.dataset.code); }
+  if (e.key === 'ArrowDown' && first) { e.preventDefault(); first.focus(); }
+});
+elements.langList.addEventListener('click', (e) => {
+  const option = e.target.closest('.lang-option');
+  if (option) selectLanguage(option.dataset.code);
+});
+elements.langList.addEventListener('keydown', (e) => {
+  const option = e.target.closest('.lang-option');
+  if (!option) return;
+  if (e.key === 'ArrowDown' && option.nextElementSibling) { e.preventDefault(); option.nextElementSibling.focus(); }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    (option.previousElementSibling || elements.langSearch).focus();
+  }
+});
+document.querySelector('[data-section="language"]').addEventListener('toggle', (e) => {
+  if (e.target.open) scrollSelectedLanguageIntoView();
+});
 bindToggle(elements.simplifyToggle, 'simplifyLanguage');
 bindRange(elements.dubVolume, 'dubVolume', v => Number(v) / 100);
 bindRange(elements.originalVolume, 'originalVolumeDuringDub', v => Number(v) / 100);
@@ -901,14 +956,52 @@ elements.testBtn.addEventListener('click', () => {
 });
 
 // Keep the popup in sync when the player's DUB button changes a setting.
+// ---- Usage and plan (limits are configured in plans.js)
+function formatDuration(seconds) {
+  const min = Math.floor(seconds / 60);
+  if (min < 1) return seconds > 0 ? '<1 min' : '0 min';
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${min % 60} min`;
+}
+
+function renderUsage(storedUsage, license) {
+  const plan = ytdubPlan(license);
+  const u = ytdubCurrentUsage(storedUsage);
+  const badge = $('usage-plan');
+  badge.textContent = `${plan.name} plan`;
+  badge.classList.toggle('premium', plan !== YTDUB_PLANS.free);
+
+  const bar = $('usage-bar');
+  if (plan.dailyDubMinutes == null) {
+    $('usage-text').textContent = `Dubbed today ${formatDuration(u.dubSecondsToday)} · this month ${formatDuration(u.dubSecondsMonth)}`;
+    bar.hidden = true;
+    return;
+  }
+  const limitSec = plan.dailyDubMinutes * 60;
+  const used = Math.min(u.dubSecondsToday, limitSec);
+  $('usage-text').textContent = used >= limitSec
+    ? `Daily limit reached (${plan.dailyDubMinutes} min). Subtitles still work; dubbing resumes tomorrow.`
+    : `Today ${formatDuration(used)} of ${plan.dailyDubMinutes} min dubbing`;
+  bar.hidden = false;
+  bar.classList.toggle('full', used >= limitSec);
+  $('usage-fill').style.width = `${Math.round((used / limitSec) * 100)}%`;
+}
+
+function loadUsage() {
+  chrome.storage.local.get(['ytdub_usage', 'ytdub_license'], r => renderUsage(r.ytdub_usage, r.ytdub_license));
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.ytdub_settings && changes.ytdub_settings.newValue) {
+  if (area !== 'local') return;
+  if (changes.ytdub_settings && changes.ytdub_settings.newValue) {
     currentSettings = { ...DEFAULT_SETTINGS, ...changes.ytdub_settings.newValue };
     renderBigToggle(elements.autoDubToggle, currentSettings.autoDubEnabled);
     renderBigToggle(elements.subtitlesToggle, currentSettings.subtitlesEnabled);
     renderLabels();
   }
+  if (changes.ytdub_usage || changes.ytdub_license) loadUsage();
 });
+loadUsage();
 
 chrome.storage.local.get(['ytdub_settings'], (result) => {
   currentSettings = { ...DEFAULT_SETTINGS, ...((result && result.ytdub_settings) || {}) };

@@ -520,13 +520,16 @@
   const dub = {
     clip: null,
     cue: null,
+    startedAt: 0,
     play(cue, clip, rate) {
       this.stop(false);
       this.clip = clip;
       this.cue = cue;
+      this.startedAt = performance.now();
       duck.down();
       clip.play(rate, settings.dubVolume, () => {
         if (this.clip !== clip) return;
+        this.countUsage();
         this.clip = null;
         this.cue = null;
         duck.upSoon();
@@ -535,10 +538,15 @@
     },
     stop(restore = true) {
       const c = this.clip;
+      if (c) this.countUsage();
       this.clip = null;
       this.cue = null;
       if (c) c.stop();
       if (restore) duck.up();
+    },
+    countUsage() {
+      usage.seconds += Math.min(60, (performance.now() - this.startedAt) / 1000);
+      usage.lines += 1;
     },
   };
 
@@ -741,7 +749,7 @@
       const c = cues[i];
       if (c.start > t + TRANSLATE_AHEAD_SEC * vRate) break;
       if (c.tr === undefined) requestTranslation(c);
-      if (!settings.autoDubEnabled || c.state !== 'pending' || !c.tr || c.same) continue;
+      if (!dubActive() || c.state !== 'pending' || !c.tr || c.same) continue;
       const slot = (c.slotEnd - c.start) / vRate;
       if (settings.simplifyLanguage) maybeShorten(c, slot);
       if (ahead < PREFETCH_AHEAD) {
@@ -754,7 +762,7 @@
 
     updateSubtitleForTime(t, i0);
 
-    if (!settings.autoDubEnabled || video.paused || video.seeking) return;
+    if (!dubActive() || video.paused || video.seeking) return;
 
     const due = [];
     for (let i = i0; i < cues.length && cues[i].start <= t + LEAD_SEC * vRate; i++) {
@@ -861,7 +869,7 @@
     translate(settings.simplifyLanguage ? simplifySource(text) : text).then(res => {
       if (!res || myEpoch !== epoch || transcriptActive()) return;
       showLiveSubtitle(res.same ? null : res.text, text);
-      if (res.same || !settings.autoDubEnabled || !video || video.paused) return;
+      if (res.same || !dubActive() || !video || video.paused) return;
       const enqueue = (say) => {
         if (myEpoch !== epoch || transcriptActive()) return;
         live.queue.push({ tr: say || res.text, span, at: performance.now() });
@@ -927,10 +935,11 @@
       shownKey = null;
       return;
     }
-    const key = `${dubbed}|${original}|${settings.subtitleMode}|${targetLang()}`;
+    const key = `${dubbed}|${original}|${settings.subtitleMode}|${targetLang()}|${limitReached}`;
     if (key === shownKey) return;
     shownKey = key;
-    tag.textContent = `🎙️ Auto-Dub: ${targetLang().toUpperCase()}`;
+    tag.textContent = `🎙️ Auto-Dub: ${targetLang().toUpperCase()}`
+      + (limitReached && settings.autoDubEnabled ? ' · voice paused: daily limit reached' : '');
     dEl.textContent = dubbed || original || '';
     const showOrig = settings.subtitleMode === 'bilingual' && dubbed && original && dubbed !== original;
     oEl.textContent = showOrig ? original : '';
@@ -978,7 +987,10 @@
     }
     const label = `🎙️ DUB: ${targetLang().toUpperCase()}`;
     if (btn.textContent !== label) btn.textContent = label;
-    btn.classList.toggle('active', !!settings.autoDubEnabled);
+    btn.classList.toggle('active', dubActive());
+    btn.title = limitReached
+      ? 'Daily dubbing limit reached (subtitles still work)'
+      : 'YouTube Auto-Dub (click to toggle voice dubbing)';
   }
 
   function tryEnableCaptions() {
@@ -995,6 +1007,36 @@
 
   function working() {
     return settings.autoDubEnabled || settings.subtitlesEnabled;
+  }
+
+  // ---------------------------------------------------------------- usage & plan limits (plans.js)
+
+  const usage = { seconds: 0, lines: 0 }; // not yet reported to the background worker
+  let limitReached = false;
+
+  function dubActive() {
+    return settings.autoDubEnabled && !limitReached;
+  }
+
+  function flushUsage() {
+    if (usage.seconds < 0.5 && !usage.lines) return;
+    const report = { action: 'USAGE', dubSeconds: Math.round(usage.seconds * 10) / 10, lines: usage.lines };
+    usage.seconds = 0;
+    usage.lines = 0;
+    try { chrome.runtime.sendMessage(report, () => void chrome.runtime.lastError); } catch (e) { /* context gone */ }
+  }
+
+  function updateLimit(storedUsage, license) {
+    const was = limitReached;
+    limitReached = ytdubLimitReached(storedUsage, license);
+    if (limitReached && !was) {
+      dub.stop();
+      live.queue = [];
+    }
+    if (limitReached !== was) {
+      shownKey = null;
+      ensurePlayerButton();
+    }
   }
 
   function applySettings(next) {
@@ -1165,10 +1207,19 @@
     document.addEventListener('keydown', prime, true);
 
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.ytdub_settings && changes.ytdub_settings.newValue) {
+      if (area !== 'local') return;
+      if (changes.ytdub_settings && changes.ytdub_settings.newValue) {
         applySettings(changes.ytdub_settings.newValue);
       }
+      if (changes.ytdub_usage || changes.ytdub_license) {
+        chrome.storage.local.get(['ytdub_usage', 'ytdub_license'], r => updateLimit(r.ytdub_usage, r.ytdub_license));
+      }
     });
+    chrome.storage.local.get(['ytdub_usage', 'ytdub_license'], r => updateLimit(r.ytdub_usage, r.ytdub_license));
+
+    // Report spoken time every 15 s and when the page goes away.
+    intervals.push(setInterval(flushUsage, 15000));
+    window.addEventListener('pagehide', flushUsage);
 
     chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
       if (req && req.action === 'GET_STATUS') {
@@ -1177,6 +1228,7 @@
           mode: transcriptActive() ? 'transcript' : (noCaptions ? 'no-captions' : 'live'),
           lines: transcriptActive() ? cues.length : 0,
           audioRouting: duck.gain ? 'webaudio' : 'element',
+          limitReached,
         });
       }
     });

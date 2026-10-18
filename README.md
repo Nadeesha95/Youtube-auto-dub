@@ -30,3 +30,17 @@
 4. Enable **Developer mode** toggle in top-right.
 5. Click **Load unpacked** and select the folder.
 6. Reload any YouTube tabs that were already open.
+
+---
+
+## Plans, usage and limits
+Everything is free and unlimited today (translation and voice use Google's free services from each
+user's own browser, so users cost nothing to serve). Dubbed minutes per day and month are tracked
+and shown in the popup.
+
+`plans.js` defines the Free and Premium plans in one place:
+- **Add a free limit**: set `dailyDubMinutes: 30` on the free plan. Dubbing then stops at the limit
+  (subtitles keep working), the player shows why, and the popup shows a progress bar.
+- **Add premium later**: verify a license key on your own server and store `{ tier: 'premium' }`
+  under the `ytdub_license` storage key. Limits enforced only in the browser can be bypassed, so
+  paid features that cost you money (e.g. premium voices) should run on your server.
