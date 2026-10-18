@@ -1,0 +1,86 @@
+CHROME WEB STORE - PRIVACY PRACTICES TAB
+YouTube Auto-Dub & 100 Language Subtitles (v2.2.0)
+
+Copy each answer into the matching field of the Developer Dashboard > Privacy practices tab.
+Every answer is under the 1,000-character field limit.
+
+======================================================================
+SINGLE PURPOSE DESCRIPTION
+======================================================================
+
+Translates YouTube videos for viewers who do not speak the video's language. The extension reads the video's captions, translates them into the language the user chooses, and shows them as translated subtitles on the video and/or speaks them as a voice dub synchronized with the video. All features (subtitles, voice dubbing, volume and speed settings) serve this one purpose.
+
+======================================================================
+PERMISSION JUSTIFICATIONS
+======================================================================
+
+----------------------------------------------------------------------
+storage
+----------------------------------------------------------------------
+
+Saves the user's settings locally (chosen language, subtitle and dubbing on/off, voice volume, voice speed, subtitle style) so they persist between browser sessions and apply instantly to open YouTube tabs. Also stores local usage counters (minutes dubbed today and this month) that are shown to the user in the popup. All data stays in chrome.storage.local on the user's device and is never sent to the developer.
+
+----------------------------------------------------------------------
+Host permission: *://*.youtube.com/*
+----------------------------------------------------------------------
+
+The extension only works on YouTube. This permission lets its content scripts run on YouTube video pages to: read the video's caption track (the text to translate), display the translated subtitles over the player, add a dubbing on/off button to the player controls, play the dubbed voice in sync with the video, and lower the original audio while the dub speaks. It is also used so the popup can show the dubbing status of the current YouTube tab. No other websites are accessed.
+
+----------------------------------------------------------------------
+Host permission: https://translate.googleapis.com/*
+----------------------------------------------------------------------
+
+Used to translate the video's caption text into the language the user selected. Only caption text from the video being watched is sent; no personal information, browsing history or account data is included.
+
+----------------------------------------------------------------------
+Host permission: https://translate.google.com/*
+----------------------------------------------------------------------
+
+Used to generate the spoken voice for the dub (Google Translate text-to-speech) from the translated caption text, including for languages that have no voice installed on the computer, such as Sinhala, Tamil and Bengali. The request is made by the extension's background service worker because the service rejects requests coming from youtube.com pages. Only the translated caption text is sent.
+
+======================================================================
+REMOTE CODE
+======================================================================
+
+Are you using remote code?  ->  No, I am not using remote code.
+
+Justification (if asked):
+All JavaScript is included in the extension package. The extension does not load or execute scripts from any server and does not use eval. One packaged script (inject.js) runs in the YouTube page context only to observe the caption data YouTube's own player downloads, so the full timed transcript can be translated ahead of playback. Network requests return only data (translated text and audio), never code.
+
+======================================================================
+DATA USAGE
+======================================================================
+
+Data types collected (tick only this one):
+  [x] Website content
+      - Caption text of the YouTube video being watched is sent to Google Translate
+        to be translated and spoken. It is not stored or sent to the developer.
+
+Leave all others unticked:
+  [ ] Personally identifiable information
+  [ ] Health information
+  [ ] Financial and payment information
+  [ ] Authentication information
+  [ ] Personal communications
+  [ ] Location
+  [ ] Web history
+  [ ] User activity
+      (Settings and dubbing-minute counters stay on the device and are never transmitted,
+       so they are not "collected" under the Chrome Web Store definition.)
+
+Certifications (tick all three):
+  [x] I do not sell or transfer user data to third parties, outside of the approved use cases.
+  [x] I do not use or transfer user data for purposes that are unrelated to my item's single purpose.
+  [x] I do not use or transfer user data to determine creditworthiness or for lending purposes.
+
+======================================================================
+PRIVACY POLICY URL
+======================================================================
+
+Required because "Website content" is declared above. Publish a short privacy policy page
+(for example on https://nadeesha95.github.io/) that states:
+  - Caption text of the video being watched is sent to Google Translate (translation and
+    text-to-speech) only to provide subtitles and dubbing.
+  - Settings and usage counters are stored only on the user's device.
+  - No personal data is collected, sold or shared with the developer or anyone else.
+Then paste that page's URL into the "Privacy policy" field.
