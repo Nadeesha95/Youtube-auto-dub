@@ -15,126 +15,107 @@
         <p class="subtitle">Sinhala, Tamil, Hindi & 100 Languages</p>
       </div>
     </div>
-    <div class="tier-pill">LIVE SYNC</div>
   </div>
 
   <div class="container">
+    <!-- Main switches -->
+    <div class="main-toggles">
+      <button type="button" class="big-toggle" id="subtitles-toggle" aria-pressed="true">
+        <span class="big-toggle-icon">💬</span>
+        <span class="big-toggle-label">Translated Subtitles</span>
+        <span class="big-toggle-state"></span>
+      </button>
+      <button type="button" class="big-toggle" id="auto-dub-toggle" aria-pressed="true">
+        <span class="big-toggle-icon">🎙️</span>
+        <span class="big-toggle-label">Auto Dub</span>
+        <span class="big-toggle-state"></span>
+      </button>
+    </div>
+
     <div class="status-line" id="status-line">Checking this tab…</div>
 
-    <!-- Master Auto-Dub Switch -->
-    <div class="card">
-      <div class="switch-row">
-        <div>
-          <label class="font-bold text-white" for="auto-dub-toggle">Voice Auto-Dubbing</label>
-          <p class="desc">Speaks the translation in sync with the video</p>
+    <!-- Language -->
+    <details class="section" data-section="language">
+      <summary><span>🌐 Language</span><span class="summary-value" id="summary-language"></span></summary>
+      <div class="section-body">
+        <div class="search-box">
+          <input type="text" id="lang-search" placeholder="Search 100 languages (Hindi, Sinhala, Tamil)..." />
         </div>
-        <label class="switch">
-          <input type="checkbox" id="auto-dub-toggle" checked>
-          <span class="slider"></span>
-        </label>
+        <select id="lang-select" class="select-field" aria-label="Target language"></select>
       </div>
-    </div>
-
-    <!-- Target Language -->
-    <div class="card">
-      <label class="field-label" for="lang-select">Target Dub Language</label>
-      <div class="search-box">
-        <input type="text" id="lang-search" placeholder="Search 100 languages (Hindi, Sinhala, Tamil)..." />
-      </div>
-      <select id="lang-select" class="select-field"></select>
-    </div>
+    </details>
 
     <!-- Audio -->
-    <div class="card">
-      <div class="range-row">
-        <label class="field-label" for="dub-volume">Dub voice volume</label>
-        <span class="range-value" id="dub-volume-value"></span>
-      </div>
-      <input type="range" id="dub-volume" min="0" max="100" step="5">
+    <details class="section" data-section="audio">
+      <summary><span>🔊 Volume</span><span class="summary-value" id="summary-audio"></span></summary>
+      <div class="section-body">
+        <div class="range-row">
+          <label class="field-label" for="dub-volume">Dub voice volume</label>
+          <span class="range-value" id="dub-volume-value"></span>
+        </div>
+        <input type="range" id="dub-volume" min="0" max="100" step="5">
 
-      <div class="range-row">
-        <label class="field-label" for="original-volume">Original audio while dubbing</label>
-        <span class="range-value" id="original-volume-value"></span>
+        <div class="range-row">
+          <label class="field-label" for="original-volume">Original audio while dubbing</label>
+          <span class="range-value" id="original-volume-value"></span>
+        </div>
+        <input type="range" id="original-volume" min="0" max="60" step="5">
+        <p class="desc">Fades smoothly and comes back between lines. Your YouTube volume slider is never changed.</p>
       </div>
-      <input type="range" id="original-volume" min="0" max="60" step="5">
-      <p class="desc">Fades smoothly and comes back between lines. Your YouTube volume slider is never changed.</p>
-    </div>
+    </details>
 
     <!-- Speed / fast speech -->
-    <div class="card">
-      <div class="range-row">
-        <label class="field-label" for="speech-rate">Voice speed</label>
-        <span class="range-value" id="speech-rate-value"></span>
-      </div>
-      <input type="range" id="speech-rate" min="0.8" max="1.5" step="0.05">
-
-      <div class="range-row">
-        <label class="field-label" for="max-rate">Max catch-up speed</label>
-        <span class="range-value" id="max-rate-value"></span>
-      </div>
-      <input type="range" id="max-rate" min="1.2" max="2.0" step="0.1">
-
-      <div class="switch-row" style="margin-top: 10px;">
-        <div>
-          <label class="font-bold text-white" for="simplify-toggle">Smart simplify for fast speech</label>
-          <p class="desc">When a translation is too long for its gap, the voice says a shorter, simpler version of the meaning. Subtitles keep the full text.</p>
+    <details class="section" data-section="speed">
+      <summary><span>⚡ Speed & Simplify</span><span class="summary-value" id="summary-speed"></span></summary>
+      <div class="section-body">
+        <div class="range-row">
+          <label class="field-label" for="speech-rate">Voice speed</label>
+          <span class="range-value" id="speech-rate-value"></span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="simplify-toggle" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
+        <input type="range" id="speech-rate" min="0.8" max="1.5" step="0.05">
 
-      <div class="switch-row" style="margin-top: 10px;">
-        <div>
-          <label class="font-bold text-white" for="ai-toggle">Use Gemini AI to simplify</label>
-          <p class="desc">Writes short, natural lines directly in your language. Free with your own Google AI Studio key.</p>
+        <div class="range-row">
+          <label class="field-label" for="max-rate">Max catch-up speed</label>
+          <span class="range-value" id="max-rate-value"></span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="ai-toggle" checked>
-          <span class="slider"></span>
-        </label>
+        <input type="range" id="max-rate" min="1.2" max="2.0" step="0.1">
+
+        <div class="switch-row">
+          <div>
+            <label class="font-bold text-white" for="simplify-toggle">Smart simplify for fast speech</label>
+            <p class="desc">When a translation is too long for its gap, the voice says a shorter, simpler version of the meaning. Subtitles keep the full text.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="simplify-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
-      <div class="key-row">
-        <input type="password" id="gemini-key" placeholder="Paste Gemini API key" autocomplete="off" spellcheck="false">
-        <button id="gemini-save-btn" class="secondary-btn">Save</button>
-      </div>
-      <p class="desc" id="ai-status"></p>
-      <button id="gemini-get-key" class="link-btn">Get a free key at aistudio.google.com/apikey</button>
-    </div>
+    </details>
 
     <!-- Subtitles & voice -->
-    <div class="card">
-      <div class="switch-row">
-        <div>
-          <label class="font-bold text-white" for="subtitles-toggle">Translated subtitles</label>
-          <p class="desc">Replaces YouTube's captions while synced</p>
+    <details class="section" data-section="voice">
+      <summary><span>🗣️ Subtitle style & Voice</span><span class="summary-value" id="summary-voice"></span></summary>
+      <div class="section-body">
+        <div class="two-col">
+          <div>
+            <label class="field-label" for="subtitle-mode">Subtitle style</label>
+            <select id="subtitle-mode" class="select-field">
+              <option value="bilingual">Bilingual</option>
+              <option value="dubbed">Translation only</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="tts-engine">Voice</label>
+            <select id="tts-engine" class="select-field">
+              <option value="auto">Google (natural)</option>
+              <option value="local">Browser voice</option>
+            </select>
+          </div>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="subtitles-toggle" checked>
-          <span class="slider"></span>
-        </label>
+        <button id="test-voice-btn" class="primary-btn">🔊 Test voice</button>
       </div>
-
-      <div class="two-col">
-        <div>
-          <label class="field-label" for="subtitle-mode">Subtitle style</label>
-          <select id="subtitle-mode" class="select-field">
-            <option value="bilingual">Bilingual</option>
-            <option value="dubbed">Translation only</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label" for="tts-engine">Voice</label>
-          <select id="tts-engine" class="select-field">
-            <option value="auto">Google (natural)</option>
-            <option value="local">Browser voice</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <button id="test-voice-btn" class="primary-btn">🔊 Test voice</button>
+    </details>
   </div>
 
   <script src="popup.js"></script>

@@ -25,7 +25,6 @@
     speechPitch: 1.0,
     ttsEngine: 'auto',          // 'auto' = Google voice (pre-buffered) with browser-voice fallback, 'local' = browser voices
     simplifyLanguage: true,     // shorten lines that cannot fit their time slot
-    aiSimplify: true,           // use Gemini (user's free API key) for shortening when a key is set
     subtitlesEnabled: true,
     subtitleMode: 'bilingual',
     autoEnableCaptions: true,
@@ -35,7 +34,7 @@
   const TRANSLATE_AHEAD_SEC = 60;
   const PREFETCH_AHEAD = 3;           // upcoming lines whose voice audio is pre-buffered
   const MAX_INFLIGHT = 3;
-  const MAX_SHORTEN_INFLIGHT = 20;     // lines waiting to be shortened (Gemini batches them)
+  const MAX_SHORTEN_INFLIGHT = 3;
   const DUCK_HOLD_MS = 700;           // keep the original ducked between consecutive lines (no volume pumping)
   const LIVE_FLUSH_PAUSE_MS = 700;
   const LIVE_MAX_WORDS = 14;
@@ -178,10 +177,10 @@
   }
 
   // Asks for the line's meaning in fewer words (rewritten in English, then translated).
-  function requestShorten(text, sourceLang, ratio, maxChars, useAI) {
+  function requestShorten(text, sourceLang, ratio) {
     return new Promise(resolve => {
       try {
-        chrome.runtime.sendMessage({ action: 'SHORTEN', text, sourceLang, targetLang: targetLang(), ratio, maxChars, useAI }, res => {
+        chrome.runtime.sendMessage({ action: 'SHORTEN', text, sourceLang, targetLang: targetLang(), ratio }, res => {
           resolve(chrome.runtime.lastError || !res ? null : res.translatedText || null);
         });
       } catch (e) {
@@ -200,7 +199,7 @@
     c.shortening = true;
     shortenInflight++;
     const myEpoch = epoch;
-    requestShorten(c.text, c.srcLang, ratio, Math.floor(c.tr.length * ratio), settings.aiSimplify).then(say => {
+    requestShorten(c.text, c.srcLang, ratio).then(say => {
       if (myEpoch !== epoch) return;
       shortenInflight--;
       c.shortening = false;
@@ -870,8 +869,7 @@
         pumpLive();
       };
       const ratio = settings.simplifyLanguage ? shrinkRatio(res.text, span) : 1;
-      // Live captions are already late, so only the instant rule-based shortener is used here.
-      if (ratio < 1) requestShorten(text, res.sourceLang, ratio, Math.floor(res.text.length * ratio), false).then(enqueue);
+      if (ratio < 1) requestShorten(text, res.sourceLang, ratio).then(enqueue);
       else enqueue(null);
     });
   }
@@ -1005,8 +1003,7 @@
 
     if (prev.targetLanguage !== settings.targetLanguage || prev.simplifyLanguage !== settings.simplifyLanguage) {
       resetTranslations();
-    } else if (prev.maxSpeechRate !== settings.maxSpeechRate || prev.ttsEngine !== settings.ttsEngine
-        || prev.aiSimplify !== settings.aiSimplify) {
+    } else if (prev.maxSpeechRate !== settings.maxSpeechRate || prev.ttsEngine !== settings.ttsEngine) {
       epoch++;
       shortenInflight = 0;
       cues.forEach(c => {

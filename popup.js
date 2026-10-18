@@ -716,13 +716,13 @@ const DEFAULT_SETTINGS = {
   simplifyLanguage: true,
   subtitlesEnabled: true,
   subtitleMode: 'bilingual',
-  autoEnableCaptions: true,
-  aiSimplify: true
+  autoEnableCaptions: true
 };
 
 const $ = (id) => document.getElementById(id);
 const elements = {
   autoDubToggle: $('auto-dub-toggle'),
+  subtitlesToggle: $('subtitles-toggle'),
   langSelect: $('lang-select'),
   langSearch: $('lang-search'),
   dubVolume: $('dub-volume'),
@@ -730,12 +730,6 @@ const elements = {
   speechRate: $('speech-rate'),
   maxRate: $('max-rate'),
   simplifyToggle: $('simplify-toggle'),
-  aiToggle: $('ai-toggle'),
-  aiStatus: $('ai-status'),
-  geminiKey: $('gemini-key'),
-  geminiSaveBtn: $('gemini-save-btn'),
-  geminiGetKey: $('gemini-get-key'),
-  subtitlesToggle: $('subtitles-toggle'),
   subtitleMode: $('subtitle-mode'),
   ttsEngine: $('tts-engine'),
   testBtn: $('test-voice-btn'),
@@ -764,27 +758,42 @@ function renderLanguageOptions(filter = '') {
   });
 }
 
-function renderRangeLabels() {
-  $('dub-volume-value').textContent = `${Math.round(currentSettings.dubVolume * 100)}%`;
-  $('original-volume-value').textContent = currentSettings.originalVolumeDuringDub === 0
-    ? 'Muted'
-    : `${Math.round(currentSettings.originalVolumeDuringDub * 100)}%`;
-  $('speech-rate-value').textContent = `${Number(currentSettings.speechRate).toFixed(2)}×`;
-  $('max-rate-value').textContent = `${Number(currentSettings.maxSpeechRate).toFixed(1)}×`;
+const percent = (v) => `${Math.round(v * 100)}%`;
+
+// Values shown on the collapsed section headers and next to the sliders.
+function renderLabels() {
+  const s = currentSettings;
+  const lang = ALL_LANGUAGES.find(l => l.code === s.targetLanguage);
+  $('summary-language').textContent = lang ? lang.name : s.targetLanguage;
+
+  const original = s.originalVolumeDuringDub === 0 ? 'Muted' : percent(s.originalVolumeDuringDub);
+  $('dub-volume-value').textContent = percent(s.dubVolume);
+  $('original-volume-value').textContent = original;
+  $('summary-audio').textContent = `Voice ${percent(s.dubVolume)} · Video ${original}`;
+
+  $('speech-rate-value').textContent = `${Number(s.speechRate).toFixed(2)}×`;
+  $('max-rate-value').textContent = `${Number(s.maxSpeechRate).toFixed(1)}×`;
+  $('summary-speed').textContent = `${Number(s.speechRate).toFixed(2)}×${s.simplifyLanguage ? ' · Simplify' : ''}`;
+
+  $('summary-voice').textContent = `${s.subtitleMode === 'bilingual' ? 'Bilingual' : 'Translation'} · ${s.ttsEngine === 'local' ? 'Browser' : 'Google'}`;
+}
+
+function renderBigToggle(button, on) {
+  button.setAttribute('aria-pressed', String(on));
+  button.querySelector('.big-toggle-state').textContent = on ? 'ON' : 'OFF';
 }
 
 function applySettingsToUI() {
-  elements.autoDubToggle.checked = currentSettings.autoDubEnabled;
+  renderBigToggle(elements.autoDubToggle, currentSettings.autoDubEnabled);
+  renderBigToggle(elements.subtitlesToggle, currentSettings.subtitlesEnabled);
   elements.dubVolume.value = Math.round(currentSettings.dubVolume * 100);
   elements.originalVolume.value = Math.round(currentSettings.originalVolumeDuringDub * 100);
   elements.speechRate.value = currentSettings.speechRate;
   elements.maxRate.value = currentSettings.maxSpeechRate;
   elements.simplifyToggle.checked = currentSettings.simplifyLanguage;
-  elements.aiToggle.checked = currentSettings.aiSimplify;
-  elements.subtitlesToggle.checked = currentSettings.subtitlesEnabled;
   elements.subtitleMode.value = currentSettings.subtitleMode === 'bilingual' ? 'bilingual' : 'dubbed';
   elements.ttsEngine.value = currentSettings.ttsEngine === 'local' ? 'local' : 'auto';
-  renderRangeLabels();
+  renderLabels();
   renderLanguageOptions(elements.langSearch.value);
 }
 
@@ -792,11 +801,19 @@ function applySettingsToUI() {
 let saveTimer = 0;
 function update(patch, { immediate = true } = {}) {
   currentSettings = { ...currentSettings, ...patch };
-  renderRangeLabels();
+  renderLabels();
   clearTimeout(saveTimer);
   const save = () => chrome.storage.local.set({ ytdub_settings: currentSettings });
   if (immediate) save();
   else saveTimer = setTimeout(save, 60); // throttle while a slider is being dragged
+}
+
+function bindBigToggle(button, key) {
+  button.addEventListener('click', () => {
+    const on = !currentSettings[key];
+    renderBigToggle(button, on);
+    update({ [key]: on });
+  });
 }
 
 function bindToggle(el, key) {
@@ -808,18 +825,30 @@ function bindRange(el, key, toValue) {
   el.addEventListener('change', () => update({ [key]: toValue(el.value) }));
 }
 
+bindBigToggle(elements.autoDubToggle, 'autoDubEnabled');
+bindBigToggle(elements.subtitlesToggle, 'subtitlesEnabled');
 elements.langSearch.addEventListener('input', (e) => renderLanguageOptions(e.target.value));
 elements.langSelect.addEventListener('change', (e) => update({ targetLanguage: e.target.value }));
-bindToggle(elements.autoDubToggle, 'autoDubEnabled');
 bindToggle(elements.simplifyToggle, 'simplifyLanguage');
-bindToggle(elements.aiToggle, 'aiSimplify');
-bindToggle(elements.subtitlesToggle, 'subtitlesEnabled');
 bindRange(elements.dubVolume, 'dubVolume', v => Number(v) / 100);
 bindRange(elements.originalVolume, 'originalVolumeDuringDub', v => Number(v) / 100);
 bindRange(elements.speechRate, 'speechRate', Number);
 bindRange(elements.maxRate, 'maxSpeechRate', Number);
 elements.subtitleMode.addEventListener('change', (e) => update({ subtitleMode: e.target.value }));
 elements.ttsEngine.addEventListener('change', (e) => update({ ttsEngine: e.target.value }));
+
+// Remember which sections were left open.
+const OPEN_SECTIONS_KEY = 'ytdub_open_sections';
+const sections = document.querySelectorAll('details.section');
+let openSections = [];
+try { openSections = JSON.parse(localStorage.getItem(OPEN_SECTIONS_KEY)) || []; } catch (e) { /* ignore */ }
+sections.forEach(d => {
+  d.open = openSections.includes(d.dataset.section);
+  d.addEventListener('toggle', () => {
+    const open = Array.from(sections).filter(x => x.open).map(x => x.dataset.section);
+    try { localStorage.setItem(OPEN_SECTIONS_KEY, JSON.stringify(open)); } catch (e) { /* ignore */ }
+  });
+});
 
 function setStatus(text, kind = '') {
   elements.status.textContent = text;
@@ -872,61 +901,21 @@ elements.testBtn.addEventListener('click', () => {
   audio.play().catch(speakLocally);
 });
 
+// Keep the popup in sync when the player's DUB button changes a setting.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.ytdub_settings && changes.ytdub_settings.newValue) {
+    currentSettings = { ...DEFAULT_SETTINGS, ...changes.ytdub_settings.newValue };
+    renderBigToggle(elements.autoDubToggle, currentSettings.autoDubEnabled);
+    renderBigToggle(elements.subtitlesToggle, currentSettings.subtitlesEnabled);
+    renderLabels();
+  }
+});
+
 chrome.storage.local.get(['ytdub_settings'], (result) => {
   currentSettings = { ...DEFAULT_SETTINGS, ...((result && result.ytdub_settings) || {}) };
   applySettingsToUI();
+  void document.body.offsetWidth; // apply the saved state before enabling animations
+  document.body.classList.add('ready');
 });
 refreshStatus();
-
-// ---- Gemini API key (free tier) used to rewrite long lines into short spoken ones.
-// Stored separately from the settings so it never reaches the YouTube page's content script.
-const KEY_STORAGE = 'ytdub_gemini_key';
-
-function setAiStatus(text, kind = '') {
-  elements.aiStatus.textContent = text;
-  elements.aiStatus.className = `desc ${kind}`;
-}
-
-async function checkGeminiKey(key) {
-  if (!key) {
-    setAiStatus('No key yet: built-in rewrite rules are used instead.');
-    return;
-  }
-  setAiStatus('Checking key…');
-  try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
-      headers: { 'x-goog-api-key': key }
-    });
-    // A firewall or proxy (e.g. a company network) answers with its own HTML page instead of Google's JSON.
-    if (!(res.headers.get('content-type') || '').includes('json')) {
-      setAiStatus('Your network blocks the Gemini API (e.g. a company firewall). Built-in rules are used instead.', 'warn');
-    } else if (res.ok) {
-      chrome.runtime.sendMessage({ action: 'GEMINI_STATUS' }, (st) => {
-        if (chrome.runtime.lastError || !st || !st.lastError) return setAiStatus('Key works. Long lines are simplified by Gemini.', 'ok');
-        setAiStatus(`Key works, but last request: ${st.lastError}`, 'warn');
-      });
-    } else if (res.status === 400 || res.status === 401 || res.status === 403) {
-      setAiStatus('Google rejected this key. Check that you copied all of it.', 'warn');
-    } else {
-      setAiStatus(`Could not check the key (HTTP ${res.status}). Built-in rules are used meanwhile.`, 'warn');
-    }
-  } catch (e) {
-    setAiStatus('Could not reach Gemini. Built-in rules are used meanwhile.', 'warn');
-  }
-}
-
-elements.geminiSaveBtn.addEventListener('click', () => {
-  const key = elements.geminiKey.value.trim();
-  chrome.storage.local.set({ [KEY_STORAGE]: key }, () => checkGeminiKey(key));
-});
-
-elements.geminiGetKey.addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://aistudio.google.com/apikey' });
-});
-
-chrome.storage.local.get([KEY_STORAGE], (r) => {
-  const key = (r && r[KEY_STORAGE]) || '';
-  elements.geminiKey.value = key;
-  checkGeminiKey(key);
-});
 setInterval(refreshStatus, 2000);
